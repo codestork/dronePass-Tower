@@ -141,7 +141,7 @@ var addFlightPath = function(drone_id, drone_operator_id, flight_start, flight_e
   // and insert buffered flight path
 
   return pg.raw(rawInsert);      
-} 
+}
 
 
 
