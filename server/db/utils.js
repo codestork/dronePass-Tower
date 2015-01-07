@@ -118,6 +118,7 @@ var getPathConflicts = function(drone_id, drone_operator_id, flight_start, fligh
 
   // doesn't check exemption tables yet
 
+  // should return the geometries from the wgs84_parcel 
   console.log(rawQuery);
   return pg.select('gid')
     .from('owned_parcel')
@@ -134,6 +135,7 @@ var getPathConflicts = function(drone_id, drone_operator_id, flight_start, fligh
 */
 var addFlightPath = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
   // if there are no restrictions insert into flight path
+  var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
   var insertLine = 'INSERT INTO flight_path (drone_id, drone_operator_id, flight_start, flight_end, path_geom)';
   var valuesLine = 'VALUES (' + drone_id + ',' + drone_operator_id + ",'" + flight_start + "','" + flight_end + "'," + linestringValue +')';
   var rawInsert = insertLine + ' ' + valuesLine + ' ' + 'RETURNING gid;';
@@ -154,5 +156,7 @@ module.exports = {
   getParcelGeometryText:      getParcelGeometryText,
   getParcelGidByGeography:    getParcelGidByGeography, 
   convertToConvexHull:        convertToConvexHull,
-  getParcelGid:               getParcelGid
+  getParcelGid:               getParcelGid,
+  addFlightPath:              addFlightPath,
+  getPathConflicts:           getPathConflicts
 }
