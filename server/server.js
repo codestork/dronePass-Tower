@@ -1,31 +1,27 @@
-var express = require('express');
-var morgan = require('morgan');
-var bodyParser = require('body-parser');
-var path = require('path');
-var bcrypt = require('bcrypt-nodejs');
-var cors = require('cors');
+var request = require('request');
 
-// Router
-var router = require('express').Router();
-var routes = require('./routes');
-
-var app = express();
 var port = process.env.PORT || 3000;
+var io = require('socket.io')(port);
 
-app.use(morgan('dev'));
-app.use(bodyParser.json({'type':'application/json'}));
+io.on('connection', function(socket){
 
-for(var route in routes){
-  for(var method in routes[route]){
-    app[method]('/' + route, routes[route][method]);
-  }
-}
+  socket.emit('whoYouAre',{});
 
-app.param('generic_id', function(req, res, next, parameter){
-  req.generic_id = parameter;
-  next();
+  // Simple test socket communication
+  socket.on('tellMyName', function(msg){
+    socket.emit('greetings', 'hello world' + msg.name); // emit with a string!
+  });
+
 });
 
 
-app.listen(port);
-console.log("dronePass-Tower now logged into port",port);
+// Client Example
+// var socket = io.connect('http://server:port');
+//
+// socket.on('whoYouAre', function(msg){
+//   socket.emit('tellMyName', { name:"Bob" }); // emit with an object!
+// });
+
+// socket.on('greetings', function(msg){
+//   console.log(msg);
+// });
