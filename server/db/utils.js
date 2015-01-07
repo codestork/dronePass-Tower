@@ -110,7 +110,7 @@ var getParcelGid = function(longitude, latitude){
           linestring_wgs84 the GeoJSON string for the proposed geometry.
 * output: knex query that returns all the parcel geometries that intersect
 */
-var checkPathConflicts = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
+var getPathConflicts = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
   var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
   var intersectLine = 'ST_Intersects(' + linestringValue + ',' + 'hull_geom' + ')';
   var restrictionOverlap = "('" + flight_start + "'::time, '" + flight_end + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";

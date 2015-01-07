@@ -12,11 +12,11 @@ describe('utils()', function () {
   });
 
   xit('exists addFlightPath', function () {
-    //expect(utils.getParcelGeometryJSON).to.be.a('function');
+    //expect(utils.addFlightPath).to.be.a('function');
   });
 
-  xit('exists checkPathConflicts', function () {
-    //expect(utils.getParcelGeometryJSON).to.be.a('function');
+  xit('exists getPathConflicts', function () {
+    //expect(utils.getPathConflicts).to.be.a('function');
   });  
 
   // Add more assertions here
