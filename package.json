@@ -23,6 +23,7 @@
     "knex": "^0.7.3",
     "knex-postgis": "^0.1.2",
     "mocha": "^2.1.0",
+    "nanotimer": "^0.3.6",
     "pg": "^4.1.1",
     "request": "^2.51.0",
     "socket.io": "^1.2.1"

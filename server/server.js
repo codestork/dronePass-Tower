@@ -1,16 +1,28 @@
 var request = require('request');
+var utils = require('./db/utils');
+var NanoTimer = require('nanotimer');
+
+var timer = new NanoTimer();
 
 var port = process.env.PORT || 8080;
 var io = require('socket.io')(port);
 
-var say = dSay = tSay = function(msg) {
+var dSay = function(msg) {
   console.log(msg);
   // push to some MQ or other storages for TTS
 }
 
+var tSay = function(msg) {
+  console.log(msg);
+  // push to some MQ or other storages for TTS
+}
+
+// Drones that we are currently connected with
+var drones = {};
+
 io.on('connection', function(socket){
 
-  socket.emit('whoYouAre',{});
+  // socket.emit('whoYouAre',{});
 
   // Simple test socket communication
   socket.on('tellMyName', function(msg){
@@ -18,42 +30,67 @@ io.on('connection', function(socket){
   });
 
 
+//*********************************************************
+// Client Server Communication
+//*********************************************************
+
+  socket.on('CT_allDronesState', function(msg){
+    socket.emit('update', drones);
+  });
+
+
+
+//*********************************************************
+// Drone Communication
+//*********************************************************
+
   socket.on('DT_update', function(msg){
     dSay(msg.transcript);
-    // store in local data structure(memory)
-    // potentially array of objects
+    drones[msg.callSign] = msg;
+
+    for ( d in drones ) {
+      console.log(drones[d]);
+    }
   });
+
 
   socket.on('DT_ack', function(msg){
     dSay(msg.transcript);
   });
 
+
   socket.on('DT_register', function(msg){
     dSay(msg.transcript);
-    // put msg in local memory
-    //    msg has {callSign, droneType, location,
-    //    speed, prevPathPtInd, distance, statusCode}
-    //
-    // socket.emit('TD_fileInFlightPlan');
+    drones[msg.callSign] = msg;
+
+    socket.emit('TD_fileInFlightPlan');
   });
+
 
   socket.on('DT_fileInFlightPlan', function(msg){
     dSay(msg.transcript);
-    // put msg in local memory
-    //    msg has {path}
-    //
+    drones[msg.callSign] = msg;
+
     // check flight path
-    // socket.emit('TD_flightPlanDecision', {path, approved(boolean)});
+    // var approved = utils.checkPathConflicts(path stuff);
+
+    socket.emit('TD_flightPlanDecision', {approved: true})
   });
+
 
   socket.on('DT_readyTakeOff', function(msg){
     dSay(msg.transcript);
-    // put msg in local memory
-    //    msg has {}
-    //
-    // (maybe add some checks/tests)
-    // socket.emit('TD_takeOff')
+    drones[msg.callSign] = msg;
+
+    // maybe add some checks/tests b4 take off
+    socket.emit('TD_takeOff')
   });
+
+
+  // Tower requests all drones for an update every 4 seconds
+  timer.setInterval(function(){
+    socket.emit('TD_update', {});
+  }, '', '4s');
 
   // On detect restriction zone 3 min ahead (interval check?)
   // tSay(transcript)
