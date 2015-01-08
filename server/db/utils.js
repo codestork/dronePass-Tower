@@ -110,7 +110,7 @@ var getParcelGid = function(longitude, latitude){
           linestring_wgs84 the GeoJSON string for the proposed geometry.
 * output: knex query that returns all the parcel geometries that intersect
 */
-var checkPathConflicts = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
+var getPathConflicts = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
   var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
   var intersectLine = 'ST_Intersects(' + linestringValue + ',' + 'hull_geom' + ')';
   var restrictionOverlap = "('" + flight_start + "'::time, '" + flight_end + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
@@ -118,6 +118,7 @@ var checkPathConflicts = function(drone_id, drone_operator_id, flight_start, fli
 
   // doesn't check exemption tables yet
 
+  // should return the geometries from the wgs84_parcel 
   console.log(rawQuery);
   return pg.select('gid')
     .from('owned_parcel')
@@ -134,6 +135,7 @@ var checkPathConflicts = function(drone_id, drone_operator_id, flight_start, fli
 */
 var addFlightPath = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
   // if there are no restrictions insert into flight path
+  var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
   var insertLine = 'INSERT INTO flight_path (drone_id, drone_operator_id, flight_start, flight_end, path_geom)';
   var valuesLine = 'VALUES (' + drone_id + ',' + drone_operator_id + ",'" + flight_start + "','" + flight_end + "'," + linestringValue +')';
   var rawInsert = insertLine + ' ' + valuesLine + ' ' + 'RETURNING gid;';
@@ -154,5 +156,7 @@ module.exports = {
   getParcelGeometryText:      getParcelGeometryText,
   getParcelGidByGeography:    getParcelGidByGeography, 
   convertToConvexHull:        convertToConvexHull,
-  getParcelGid:               getParcelGid
+  getParcelGid:               getParcelGid,
+  addFlightPath:              addFlightPath,
+  getPathConflicts:           getPathConflicts
 }
