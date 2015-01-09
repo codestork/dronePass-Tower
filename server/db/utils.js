@@ -117,7 +117,7 @@ var getPathConflicts = function(request) {
   var rawQuery = intersectLine + ' AND ' + restrictionOverlap + ';';
 
   // doesn't check exemption tables yet
-  // use callsign to get exemptions
+  
 
   // should return the geometries from the wgs84_parcel 
   return pg.select('gid')
