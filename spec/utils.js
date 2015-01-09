@@ -87,7 +87,7 @@ describe('getPathConflicts()', function() {
   });
 
   it('should return restricted geometries from getPathConflicts', function (done) {
-    var expected = [ { lot_geom: 'MULTIPOLYGON(((-122.008923178452 37.5349152013217,-122.009064531035 37.5347408988317,-122.00937172567 37.5349041146075,-122.009367555469 37.53490922794,-122.009230364823 37.5350774921358,-122.008923178452 37.5349152013217)))' } ];
+    var expected = [ { lot_geom: 'MULTIPOLYGON(((-122.152439944457 37.7024361162133,-122.15254094361 37.7023939645878,-122.152617430206 37.7023620428772,-122.152770133018 37.7025930211517,-122.152592646877 37.7026670950637,-122.152439944457 37.7024361162133)))' } ];
 
     request.flightStart = '1999-01-08 04:05:06';
     request.flightEnd = '1999-01-08 10:05:06';
@@ -108,11 +108,11 @@ describe('getPathConflicts()', function() {
     }, TIME_OUT);    
   });
 
-  xit('should not return geometries from getPathConflicts', function (done) {
-    var linestring = {"type":"LineString","coordinates":[[-121.38344913643356,37.523210405243056],[-121.38061820472406,37.51003985009118],[-121.36222428103338,37.51429365145312],[-121.36742368405428,37.50678829541209]]};
-
+  it('should not return geometries from getPathConflicts', function (done) {
+    var pathCoordsWrong = [[-1886555.8045440218,564332.6659284362],[1886800.1148899796,562866.8038526904],[1888455.9961236925,563328.2789506103],[1887953.8026347796,562513.9111307516]];
     request.flightStart = '1999-01-08 04:05:06';
     request.flightEnd = '1999-01-08 10:05:06';
+    request.path = pathCoordsWrong;
     var result;
     utils.getPathConflicts(request).exec(function(err, r) {
       console.log(r);
