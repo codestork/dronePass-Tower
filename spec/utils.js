@@ -5,6 +5,27 @@ var utils = require(path.join(__dirname, '..', './server/db/utils.js'));
 
 var TIME_OUT = 1000;
 
+var pathCoords3 = [[1886555.8045440218,614332.6659284362],[1886800.1148899796,612866.8038526904],[1888455.9961236925,613328.2789506103],[1887953.8026347796,612513.9111307516]];
+var callSign = 'Test';//INSERT INTO drone (call_sign, drone_type, max_velocity) VALUES ('Test', 'Amazon', 10);
+var droneOperatorId = 12345;//INSERT INTO drone_operator (id, operator_name) VALUES (12345, 'Test');
+    // INSERT INTO land_owner (id, login) VALUES (12345, 'yo@yo.yo');
+    // INSERT INTO land_owner (id, login) VALUES (23456, 'bo@bo.bo');
+    // INSERT INTO land_owner (id, login) VALUES (34567, 'mo@mo.mo');
+var request = {
+/**
+request.callSign, callsign of the associated drone
+          request.flightStart, the ISO string for the start date of the flight
+          request.flightEnd, the ISO string for th end date for the flight
+          request.path the nested tuple of coordinates
+*/
+
+  callSign : callSign,
+  flightStart : "1999-01-08 05:05:06",
+  flightEnd : "1999-01-08 04:05:06",
+  // droneOperatorId : droneOperatorId,
+  path : pathCoords3
+};
+
 describe('addFlightPath()', function () {
   'use strict';
 
@@ -13,25 +34,14 @@ describe('addFlightPath()', function () {
   });
 
   it('should fail to add a flight path with incorrect time order', function(done) {
-    var linestring = {"type":"LineString","coordinates":[[-121.78344913643356,37.523210405243056],[-121.78061820472406,37.51003985009118],[-121.76222428103338,37.51429365145312],[-121.76742368405428,37.50678829541209]]};
+    var callSign = 'Test';//INSERT INTO drone (call_sign, drone_type, max_velocity) VALUES ('Test', 'Amazon', 10);
+    var droneOperatorId = 12345;//INSERT INTO drone_operator (id, operator_name) VALUES (12345, 'Test');
 
-    /** requires a drone to be in database
-     requires a drone_operator to be in database
-     requires 3 land owners to be in database
-     landOwnerIds : 666, 667, 668
-     parcel ids : 328449, 328451, 328452
-     requires a restricted parcel 328449
-     requires a restricted parcel with an exemption 328451
-     requires a parcel that doesn't have restrictions 328452
-    
-     registerAddress(666, 328449, '04:05:06', '10:05:06');
-     registerAddress(667, 328451, null, null);
-     registerAddress(668, 328452, '04:05:06', '10:05:06');
-    **/
-    var drone_id = 666;
-    var drone_operator_id = 666;
     var errResult;
-    utils.addFlightPath(drone_id, drone_operator_id, "1999-01-08 05:05:06", "1999-01-08 04:05:06", "'" + JSON.stringify(linestring) + "'").exec(function(err, r) {
+
+    console.log(request);
+    utils.addFlightPath(request).exec(function(err, r) {
+      console.log(r);
       errResult = err.routine;
     });
 
@@ -41,31 +51,15 @@ describe('addFlightPath()', function () {
     }, TIME_OUT);
   });
 
-  it('should add flight path', function(done) {
-    var result;
-    var linestring = {"type":"LineString","coordinates":[[-121.78344913643356,37.523210405243056],[-121.78061820472406,37.51003985009118],[-121.76222428103338,37.51429365145312],[-121.76742368405428,37.50678829541209]]};
-    /** requires a drone to be in database
-     requires a drone_operator to be in database
-     requires 3 land owners to be in database
-     landOwnerIds : 666, 667, 668
-     parcel ids : 328449, 328451, 328452
-     requires a restricted parcel 328449
-     requires a restricted parcel with an exemption 328451
-     requires a parcel that doesn't have restrictions 328452
-    
-     registerAddress(666, 328449, '04:05:06', '10:05:06');
-     registerAddress(667, 328451, null, null);
-     registerAddress(668, 328452, '04:05:06', '10:05:06');
-    **/
-
-    
-    var drone_id = 666;
-    var drone_operator_id = 666;
+  it('should add flight path', function(done) {    
     var flightPathId;
-    utils.addFlightPath(drone_id, drone_operator_id, "1999-01-08 04:05:06", "1999-01-08 15:05:06", "'" + JSON.stringify(linestring) + "'").exec(function(err, r) {
 
+    request.flightStart = '1999-01-08 04:05:06';
+    request.flightEnd = '1999-01-08 15:05:06';
+    console.log(request);
+    utils.addFlightPath(request).exec(function(err, r) {
+      console.log(r);
       flightPathId = r.rows[0].gid;
-      console.log(flightPathId);
       pg('flight_path')
         .where('gid',flightPathId)
         .delete().exec(function(err, r) {
@@ -93,21 +87,42 @@ describe('getPathConflicts()', function() {
   });
 
   it('should return restricted geometries from getPathConflicts', function (done) {
-    var linestring = {"type":"LineString","coordinates":[[-121.78344913643356,37.523210405243056],[-121.78061820472406,37.51003985009118],[-121.76222428103338,37.51429365145312],[-121.76742368405428,37.50678829541209]]};
+    var expected = [ { lot_geom: 'MULTIPOLYGON(((-122.008923178452 37.5349152013217,-122.009064531035 37.5347408988317,-122.00937172567 37.5349041146075,-122.009367555469 37.53490922794,-122.009230364823 37.5350774921358,-122.008923178452 37.5349152013217)))' } ];
 
-    var drone_id = 666;
-    var drone_operator_id = 666;
+    request.flightStart = '1999-01-08 04:05:06';
+    request.flightEnd = '1999-01-08 10:05:06';
     var result;
-    utils.getPathConflicts(drone_id, drone_operator_id, "1999-01-08 04:05:06", "1999-01-08 10:05:06", "'" + JSON.stringify(linestring) + "'").exec(function(err, r) {
-      
+    console.log(request);
+    utils.getPathConflicts(request).exec(function(err, r) {
+      console.log(r);
+      utils.getParcelGeometryText(r[0].gid, 'parcel_wgs84').exec(function(err, r) {
+
+        result = r;
+      });
+    });
+    
+    setTimeout(function() {
+      console.log(result);
+      expect(result[0].lot_geom).to.equal(expected[0].lot_geom);
+      done();
+    }, TIME_OUT);    
+  });
+
+  xit('should not return geometries from getPathConflicts', function (done) {
+    var linestring = {"type":"LineString","coordinates":[[-121.38344913643356,37.523210405243056],[-121.38061820472406,37.51003985009118],[-121.36222428103338,37.51429365145312],[-121.36742368405428,37.50678829541209]]};
+
+    request.flightStart = '1999-01-08 04:05:06';
+    request.flightEnd = '1999-01-08 10:05:06';
+    var result;
+    utils.getPathConflicts(request).exec(function(err, r) {
+      console.log(r);
       result = r;
     });
     
     setTimeout(function() {
-      console.log('argh');
-      console.log(result);
-      expect(1).to.equal(2);
+      expect(result.length).to.equal(0);
       done();
     }, TIME_OUT);    
-  });  
+  });
+
 })
