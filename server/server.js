@@ -38,6 +38,16 @@ io.on('connection', function(socket){
     socket.emit('update', drones);
   });
 
+  
+  socket.on('DT_addFlightPath', function(request) {
+  /* input:  request.drone_id,  the id of the associated drone
+          request.drone_operator_id, the id of the associated operator
+          request.flight_start, the ISO string for the start date of the flight
+          request.flight_end, the ISO string for th end date for the flight
+          request.flightPathWGS84 the GeoJSON string for the proposed geometry.*/
+
+
+ });
 
 
 //*********************************************************
@@ -73,8 +83,25 @@ io.on('connection', function(socket){
 
     // check flight path
     // var approved = utils.checkPathConflicts(path stuff);
+    utils.getPathConflicts(request).exec(function(err, pathConflicts) {
+      if (err) {
+        socket.emit('TD_flightPlanDecision', {approved: false, error: err});
+      }
+      else if (pathConflicts.length === 0) {
+        utils.addFlightPath(request).exec(function(err, pathInfo) {
+          if (err) {
+            socket.emit('TD_flightPlanDecision', {approved: false, error: err});
+          } else {
+            socket.emit('TD_flightPlanDecision', {approved: true});
+          }
+        });
+      } else {
+        socket.emit('TD_flightPlanDecision', {approved: false, pathConflicts: pathConflicts});
+      }
+    });
 
-    socket.emit('TD_flightPlanDecision', {approved: true})
+
+    socket.emit('TD_flightPlanDecision', {approved: true});
   });
 
 
