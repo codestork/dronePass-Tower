@@ -138,7 +138,6 @@ var addFlightPath = function(request){
   var columns = '(drone_call_sign,flight_start,flight_end,path_geom)';
   var values =  "('" + request.callSign + "','" + request.flightStart + "','" + request.flightEnd + "'," + linestringValue +')';
   var rawInsert = 'INSERT INTO flight_path ' + columns + ' VALUES ' + values + ' RETURNING gid;';
-  console.log(rawInsert);
   // and insert buffered flight path
 
   return pg.raw(rawInsert);      
