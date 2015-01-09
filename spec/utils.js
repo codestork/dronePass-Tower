@@ -14,6 +14,8 @@ var droneOperatorId = 12345;//INSERT INTO drone_operator (id, operator_name) VAL
     // registerAddress(12345, 70371, '04:05:06', '10:05:06');
     // registerAddress(23456, 70199, null, null);
     // registerAddress(34567, 70640, '04:05:06', '10:05:06');
+    // INSERT INTO restriction_exemption (drone_call_sign, owned_parcel_gid, exemption_start, exemption_end) VALUES ('Test', 15, '1999-01-08 00:00:00', '1999-01-08 23:59:59');
+
 var request = {
   callSign : callSign,
   flightStart : '1999-01-08 04:05:06',
