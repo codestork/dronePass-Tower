@@ -116,13 +116,31 @@ var getPathConflicts = function(request) {
   var restrictionOverlap = "('" + request.flightStart + "'::time, '" + request.flightEnd + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
   var rawQuery = intersectLine + ' AND ' + restrictionOverlap + ';';
 
+  // where not in (
+  //    select owned_parcel_gid 
+  //    from restriction_exemption 
+  //    where call_sign=request.callSign 
+  //    AND flightStart > exemptionStart 
+  //    AND flightEnd < exemptionEnd
+  //)
+  //
   // doesn't check exemption tables yet
-  
-
-  // should return the geometries from the wgs84_parcel 
-  return pg.select('gid')
-    .from('owned_parcel')
-    .whereRaw(rawQuery);
+  return pg.select('owned_parcel_gid').from('restriction_exemption')
+  .where('drone_call_sign', request.callSign)
+  .andWhere('exemption_start', '<', request.flightStart)
+  .andWhere('exemption_end', '>', request.flightEnd)
+  .map(function(row) {
+    return row.owned_parcel_gid;
+  })
+  .then(function(owned_parcel_gids) {
+    return pg.select('gid').from('owned_parcel')
+           .whereNotIn('gid', owned_parcel_gids)
+           .whereRaw(rawQuery);
+  })
+  .catch(function(error) {
+    console.log(error);
+    return error;
+  });
 }
 
 /**
