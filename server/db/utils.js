@@ -22,7 +22,7 @@ var BUFFER_OFFSET = 5; // 5 METERS
 //*************************************************************************
 
 /**
-* input: gid, table
+* input:  gid, table
 * output: knex query that selects GeoJSON Geometry of provided gid in provided table
 */
 var getParcelGeometryJSON = function(gid, table){
@@ -33,7 +33,7 @@ var getParcelGeometryJSON = function(gid, table){
 
 
 /**
-* input: gid (integer or array of integers), table
+* input:  gid (integer or array of integers), table
 * output: knex query that selects Text Geometry of provided gid in provided table
 */
 var getParcelGeometryText = function(gid, table){
@@ -44,7 +44,7 @@ var getParcelGeometryText = function(gid, table){
 
 
 /**
-* input: Geometry as Text
+* input:  Geometry as Text
 * output: knex query that gives Convex Hull as Raw Geometry
 */
 var convertToConvexHull = function(geoText){
@@ -56,7 +56,7 @@ var convertToConvexHull = function(geoText){
 
 
 /**
-* input: long, lat
+* input:  long, lat
 * output: knex query that selects gid of Parcel that intersects with provided long lat point
 *         by geography calculations (slow, exact)
 */
@@ -66,16 +66,10 @@ var getParcelGidByGeography = function(longitude, latitude){
   .from('parcel_wgs84')
   .whereRaw("ST_Intersects(ST_GeographyFromText('SRID=4326;POINT("+longitude+" "+latitude+")'), lot_geom)");
 };
-// var d1 = new Date;
-// getParcelGidByGeography(-122.023036, 37.634351).then(function(r){
-//   d1d = new Date;
-//   console.log(r);
-//   console.log('geog',(d1d-d1)+'ms');
-// });
 
 
 /**
-* input: long, lat
+* input:  long, lat
 * output: knex query that selects gid of Parcel that intersects with provided long lat point
 *         by geometry calculations (fast, estimate)
 */
@@ -86,6 +80,7 @@ var getParcelGid = function(longitude, latitude){
 };
 
 
+<<<<<<< HEAD
 
 
 
@@ -168,6 +163,11 @@ var addFlightPath = function(request){
 /**
 * input: [{gid: #},{gid: #},{gid: #}...]
 * output:
+=======
+/**
+* input:  [{gid: #},{gid: #},{gid: #}...]
+* output: promise with an array of geometries
+>>>>>>> (doc) adds comments to new utility functions, describing inputs and outputs
 */
 var getGeometriesFromGids = function(gids, tableName, geomColName){
   var arr = [];
@@ -193,22 +193,21 @@ var getGeometriesFromGids = function(gids, tableName, geomColName){
 
 
 /**
-* input: [geom, geom, geom]
-* output:
+* input:  polygon (as text or geometry)
+* output: promise with exterior ring of polygon (as text)
 */
 var getExternalRing = function(polygon){
   return pg.raw("SELECT ST_asText(ST_ExteriorRing('"+polygon+"'))")
-  // return pg.raw("SELECT ST_ExteriorRing('"+polygon+"')")
   .then(function(exteriorRing){
     return exteriorRing.rows[0].st_astext;
-    // return exteriorRing.rows[0].st_exteriorring;
   });
 };
 
 
 /**
-* input:
-* output:
+* input:  two geometries (as text or geometry)
+* output: promise with what geom1 does not share
+*         with geom2 (as text)
 */
 var getDifference = function(geom1, geom2){
   // return pg.raw("SELECT ST_Difference('"+geom1+"',ST_GeometryFromText('"+geom2+"'))")
@@ -220,8 +219,8 @@ var getDifference = function(geom1, geom2){
 };
 
 /**
-* input:
-* output:
+* input:  geoJSON
+* output: promise with geometry (as text)
 */
 var getTextFromGeoJSON = function(geoJSON){
   return pg.raw("SELECT ST_AsTexT(ST_SetSRID(ST_GeomFromGeoJSON('"+geoJSON+"'), 102243))")
@@ -231,8 +230,8 @@ var getTextFromGeoJSON = function(geoJSON){
 }
 
 /**
-* input:
-* output: makes rings by closing line strings
+* input:  open line string (as GeoJSON)
+* output: promise with a closed line string (as GeoJSON)
 */
 var getClosedLineString = function(openRing){
   var ring = JSON.parse(openRing).coordinates[0];
@@ -243,8 +242,8 @@ var getClosedLineString = function(openRing){
 
 
 /**
-* input:
-* output:
+* input:  array of line strings (as GeoJSON)
+* output: promise with a multi line string (as GeoJSON)
 */
 var makeMultiLineString = function(lineStrings){
   var multiLineString = {"type":"MultiLineString", "coordinates": []};
@@ -256,8 +255,9 @@ var makeMultiLineString = function(lineStrings){
 
 
 /**
-* input:
-* output:
+* input:  Polygon     (as text or geometry)
+*         LineString  (as text or geometry)
+* output: promise with tuple of two polygons (as GeoJSON)
 */
 var getSplitPolygon = function(polygon, lineString){
   return pg.raw("SELECT ST_AsGeoJSON(ST_Split('"+polygon+"','"+lineString+"'))")
@@ -271,6 +271,11 @@ var getSplitPolygon = function(polygon, lineString){
   })
 }
 
+
+/**
+* input:  tuple of LineStrings (as text or geometry)
+* output: promise with shorter LineString (as text or geometry)
+*/
 var getShorterOfTwoLineString = function(lines){
   var line1 = lines[0], line2 = lines[1];
   return pg.raw("SELECT ST_Length('"+line1+"')")
@@ -286,20 +291,20 @@ var getShorterOfTwoLineString = function(lines){
 
 
 /**
-* input:
-* output: knex query gives new lineString
+* input:  two geometries (as text or geometry)
+* output: promise with the merged xor of two geometries (as text)
 */
-var getSymDifference = function(lineString, ring){
-  return pg.raw("SELECT ST_AsText(ST_LineMerge(ST_SymDifference('"+lineString+"','"+ring+"')))")
-  // return pg.raw("SELECT ST_AsText(ST_SymDifference('"+lineString+"','"+ring+"'))")
+var getSymDifference = function(geom1, geom2){
+  return pg.raw("SELECT ST_AsText(ST_LineMerge(ST_SymDifference('"+geom1+"','"+geom2+"')))")
   .then(function(newLineString){
     return newLineString.rows[0].st_astext;
   });
 };
 
 /**
-* input:
-* output:
+* input:  MultiLineString (as text or geometry)
+* output: if mergable -> promise with merged LineString (as text)
+          if not mergable -> promise with given MultiLineString (as text)
 */
 var getLineMerge = function(multiLineString){
   return pg.raw("SELECT ST_AsText(ST_LineMerge('"+multiLineString+"'))")
@@ -310,8 +315,8 @@ var getLineMerge = function(multiLineString){
 
 
 /**
-* input:
-* output:
+* input:  two geometries (as text or geometry)
+* output: promise with the intersection of two geometries (as text)
 */
 var getIntersection = function(geom1, geom2){
   return pg.raw("SELECT ST_AsText(ST_Intersection('"+geom1+"','"+geom2+"'))")
@@ -320,16 +325,99 @@ var getIntersection = function(geom1, geom2){
   })
 };
 
+/**
+* input:  array of geometries (as text)
+* output: promise with the union of all the geometries
+*         (as either a Geometry Collection, MultiPolygon
+*         or MultiLineString)
+*/
+var makeMultiGeometry = function(geoms){
+  var arr = [];
+  for (var i=0; i<geoms.length; i++){
+    arr[i] = " ST_GeomFromText('"+geoms[i]+"')";
+  }
+  return pg.raw("SELECT ST_AsText(ST_Union(ARRAY["+arr+"]))")
+  .then(function(result){
+    return result.rows[0].st_astext;
+  })
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//*************************************************************************
+//          Drone Queries
+//*************************************************************************
+
+
+/**
+* input:  drone_id,  the id of the associated drone
+          drone_operator_id, the id of the associated operator
+          flight_start, the ISO string for the start date of the flight
+          flight_end, the ISO string for th end date for the flight
+          linestring_wgs84 the GeoJSON string for the proposed geometry.
+* output: knex query that returns all the parcel geometries that intersect
+*/
+var getPathConflicts = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
+  var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
+  var intersectLine = 'ST_Intersects(' + linestringValue + ',' + 'hull_geom' + ')';
+  var restrictionOverlap = "('" + flight_start + "'::time, '" + flight_end + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
+  var rawQuery = intersectLine + ' AND ' + restrictionOverlap + ';';
+
+  // doesn't check exemption tables yet
+
+  // should return the geometries from the wgs84_parcel 
+  console.log(rawQuery);
+  return pg.select('gid')
+    .from('owned_parcel')
+    .whereRaw(rawQuery);
+};
+
+
+/**
+* input:  drone_id,  the id of the associated drone
+          drone_operator_id, the id of the associated operator
+          flight_start, the ISO string for the start date of the flight
+          flight_end, the ISO string for th end date for the flight
+          linestring_wgs84 the GeoJSON string for the proposed geometry.
+* output: knex query that adds a flight path or returns the geometries that do not allow the flight path to be added
+*/
+var addFlightPath = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
+  // if there are no restrictions insert into flight path
+  var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
+  var insertLine = 'INSERT INTO flight_path (drone_id, drone_operator_id, flight_start, flight_end, path_geom)';
+  var valuesLine = 'VALUES (' + drone_id + ',' + drone_operator_id + ",'" + flight_start + "','" + flight_end + "'," + linestringValue +')';
+  var rawInsert = insertLine + ' ' + valuesLine + ' ' + 'RETURNING gid;';
+
+  // and insert buffered flight path
+
+  return pg.raw(rawInsert);      
+};
 
 
 /**
 * input:    pathGeometry      (LineString)
-            parcelGeometries  (Array of GeoJSON)
-* output:
+            parcelGeometries  (Array of gids)
+* output:   LineString of new path that goes around
+*           given geometry conflicts 
 */
 var makeAlternativePath = function(lineString, geometries){
   var cutLine;
   var lineToCutOut;
+  // Break apart lineString (as cutLine) 
+  // to no longer intersect with geometries
+  // Save removed segments (as lineToCutOut)
   return getGeometriesFromGids(geometries)
   .then(function(polygons){
     return makeMultiGeometry(polygons)
@@ -348,6 +436,9 @@ var makeAlternativePath = function(lineString, geometries){
       })
     });
   })
+  // Split given polygons by lineString
+  // to get a MultiLineString of the smaller
+  // line segments made by the polygon splits
   .map(function(polygons){
     return getSplitPolygon(polygons, lineString)
     .map(getTextFromGeoJSON)
@@ -361,46 +452,22 @@ var makeAlternativePath = function(lineString, geometries){
     return getDifference(multiLineString, lineToCutOut)
     .then(getTextFromGeoJSON)
   })
+  // Might be optional. Merges some line segments
   .then(function(lineToMerge){
     return getLineMerge(lineToMerge)
   })
+  // Merges the paths around parcels with the cut
+  // up original lineString
   .then(function(line){
     return getSymDifference(cutLine, line);
   });
 };
 
 
-// var qgisLineString = 'LINESTRING(1844936.586396238 649967.1455137864, 1844963.552273534 649864.4406941722)'
+
+
+
 var qgisLineString = 'LINESTRING(1844948.3 649934.9, 1847550.9 645370.2)';
-
-var linePath = 'LINESTRING(48 50, 50 125, 52 300)'
-var testRing = 'LINESTRING(25 150, 75 150, 75 100, 25 100, 25 150)'
-var testPoly = 'POLYGON((25 150, 75 150, 75 100, 25 100, 25 150))'
-var testPoly2 = 'POLYGON((25 250, 75 250, 75 200, 25 200, 25 250))'
-
-var lineToCutOut;
-var cutString;
-
-
-var makeMultiGeometry = function(geoms){
-  var arr = [];
-  for (var i=0; i<geoms.length; i++){
-    arr[i] = " ST_GeomFromText('"+geoms[i]+"')";
-  }
-  // console.log( "SELECT ST_AsText(ST_Union(ARRAY["+arr+"]));");
-  return pg.raw("SELECT ST_AsText(ST_Union(ARRAY["+arr+"]))")
-  .then(function(result){
-    return result.rows[0].st_astext;
-  })
-}
-
-
-
-
-
-
-
-
 
 
 makeAlternativePath(qgisLineString, [{gid: 3}, {gid: 5}])
@@ -412,42 +479,8 @@ makeAlternativePath(qgisLineString, [{gid: 3}, {gid: 5}])
 })
 .then(console.log);
 
-// pg.raw("SELECT ST_AsText(ST_MakePolygon('"+testRing+"'))")
-// .then(function(answer){
-//   return [ testPoly ];
-// })
-// .map(function(polygon){
-//   return getDifference(linePath, polygon)
-//   .then(getTextFromGeoJSON)
-//   .then(function(diff){
-//     cutString = diff;
-//     return polygon;
-//   })
-// })
-// .map(function(polygon){
-//   return getIntersection(linePath, polygon)
-//   .then(function(result){
-//     lineToCutOut = result;
-//     return polygon;
-//   })
-// })
-// .map(function(polygon){
-//   return getSplitPolygon(polygon, linePath)
-//   .map(getTextFromGeoJSON)
-//   .map(getExternalRing)
-//   .then(getShorterOfTwoLineString)
-// })
-// .map(function(line){
-//   return getDifference(line, lineToCutOut)
-//   .then(getTextFromGeoJSON);
-// })
-// .map(getLineMerge)
-// .map(function(line){
-//   return getSymDifference(cutString, line);
-// })
-// .map(function(x){
-//   console.log(x);
-// });
+
+
 
 
 
