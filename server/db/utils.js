@@ -29,7 +29,7 @@ var getParcelGeometryJSON = function(gid, table){
   var query = pg.select(st.asGeoJSON('lot_geom'))
   .from(table || 'parcel')
   return gid.constructor === Array ? query.whereIn('gid', gid) : query.where('gid', gid);
-}
+};
 
 
 /**
@@ -40,7 +40,7 @@ var getParcelGeometryText = function(gid, table){
   var query = pg.select(st.asText('lot_geom'))
   .from(table || 'parcel')
   return gid.constructor === Array ? query.whereIn('gid', gid) : query.where('gid', gid);
-}
+};
 
 
 /**
@@ -52,7 +52,7 @@ var convertToConvexHull = function(geoText){
   .then(function(r){
     return r.rows[0].st_setsrid;
   });
-}
+};
 
 
 /**
@@ -65,7 +65,7 @@ var getParcelGidByGeography = function(longitude, latitude){
   return pg.select('gid')
   .from('parcel_wgs84')
   .whereRaw("ST_Intersects(ST_GeographyFromText('SRID=4326;POINT("+longitude+" "+latitude+")'), lot_geom)");
-}
+};
 // var d1 = new Date;
 // getParcelGidByGeography(-122.023036, 37.634351).then(function(r){
 //   d1d = new Date;
@@ -83,22 +83,24 @@ var getParcelGid = function(longitude, latitude){
   return pg.select('gid')
   .from('parcel')
   .whereRaw("ST_Contains(lot_geom, ST_Transform(ST_GeometryFromText('POINT("+longitude+" "+latitude+")',4326), 102243))");
-}
-// var d2 = new Date;
-// getParcelGid(-122.023036, 37.634351)
-// .then(function(r){
-//   d2d = new Date;
-//   console.log(r);
-//   console.log('geom',(d2d-d2)+'ms');
-//   return r;
-// })
-// .then(function(r){
-//   return getParcelGeometry(r[0].gid)
-//   .then(function(geom){
-//     return {gid:r[0].gid, geom: geom[0].lot_geom}
-//   });
-// })
-// .then(console.log);
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//*************************************************************************
+//          Drone Queries
+//*************************************************************************
 
 
 /**
@@ -159,7 +161,305 @@ var addFlightPath = function(request){
   // and insert buffered flight path
 
   return pg.raw(rawInsert);      
+};
+///////////////////////////////////////////////////////////////////////////////
+
+
+/**
+* input: [{gid: #},{gid: #},{gid: #}...]
+* output:
+*/
+var getGeometriesFromGids = function(gids, tableName, geomColName){
+  var arr = [];
+  for (var i=0; i<gids.length; i++) {
+    arr.push(gids[i].gid);
+  }
+  return pg.select(geomColName || 'hull_geom')
+  .from(tableName || 'owned_parcel')
+  .whereIn('gid', arr)
+  .then(function(x){
+    return x;
+  })
+  .map(function(geom){
+    return geomColName ? geom[geomColName] : geom['hull_geom'];
+  })
+  .map(function(geom){
+    return pg.raw("SELECT ST_AsText(ST_SetSRID(ST_AsText('"+geom+"'), 102243))")
+    .then(function(sridSetGeom){
+      return sridSetGeom.rows[0].st_astext;
+    });
+  })
+};
+
+
+/**
+* input: [geom, geom, geom]
+* output:
+*/
+var getExternalRing = function(polygon){
+  return pg.raw("SELECT ST_asText(ST_ExteriorRing('"+polygon+"'))")
+  // return pg.raw("SELECT ST_ExteriorRing('"+polygon+"')")
+  .then(function(exteriorRing){
+    return exteriorRing.rows[0].st_astext;
+    // return exteriorRing.rows[0].st_exteriorring;
+  });
+};
+
+
+/**
+* input:
+* output:
+*/
+var getDifference = function(geom1, geom2){
+  // return pg.raw("SELECT ST_Difference('"+geom1+"',ST_GeometryFromText('"+geom2+"'))")
+  return pg.raw("SELECT ST_AsGeoJSON(ST_Difference('"+geom1+"','"+geom2+"'))")
+  .then(function(diff){
+    // return diff.rows[0].st_difference;
+    return diff.rows[0].st_asgeojson;
+  });
+};
+
+/**
+* input:
+* output:
+*/
+var getTextFromGeoJSON = function(geoJSON){
+  return pg.raw("SELECT ST_AsTexT(ST_SetSRID(ST_GeomFromGeoJSON('"+geoJSON+"'), 102243))")
+  .then(function(text){
+    return text.rows[0].st_astext;
+  });
 }
+
+/**
+* input:
+* output: makes rings by closing line strings
+*/
+var getClosedLineString = function(openRing){
+  var ring = JSON.parse(openRing).coordinates[0];
+  ring.push(ring[0]);
+  var ringJSONObj = {"type": "LineString", "coordinates": ring};
+  return JSON.stringify(ringJSONObj);
+};
+
+
+/**
+* input:
+* output:
+*/
+var makeMultiLineString = function(lineStrings){
+  var multiLineString = {"type":"MultiLineString", "coordinates": []};
+  for(var i=0; i<lineStrings.length; i++){
+    multiLineString.coordinates.push(JSON.parse(lineStrings[i]).coordinates);
+  }
+  return JSON.stringify(multiLineString);
+}
+
+
+/**
+* input:
+* output:
+*/
+var getSplitPolygon = function(polygon, lineString){
+  return pg.raw("SELECT ST_AsGeoJSON(ST_Split('"+polygon+"','"+lineString+"'))")
+  .then(function(result){
+    var geoms = JSON.parse(result.rows[0].st_asgeojson).geometries;
+    var splitPolygons = [];
+    for(var i=0; i<geoms.length; i++){
+      splitPolygons.push(JSON.stringify(geoms[i]));
+    }
+    return splitPolygons;
+  })
+}
+
+var getShorterOfTwoLineString = function(lines){
+  var line1 = lines[0], line2 = lines[1];
+  return pg.raw("SELECT ST_Length('"+line1+"')")
+  .then(function(length1){
+    length1 = length1.rows[0].st_length;
+    return pg.raw("SELECT ST_Length('"+line2+"')")
+    .then(function(length2){
+      length2 = length2.rows[0].st_length;
+      return length1 > length2 ? line2 : line1;
+    })
+  })
+}
+
+
+/**
+* input:
+* output: knex query gives new lineString
+*/
+var getSymDifference = function(lineString, ring){
+  return pg.raw("SELECT ST_AsText(ST_LineMerge(ST_SymDifference('"+lineString+"','"+ring+"')))")
+  // return pg.raw("SELECT ST_AsText(ST_SymDifference('"+lineString+"','"+ring+"'))")
+  .then(function(newLineString){
+    return newLineString.rows[0].st_astext;
+  });
+};
+
+/**
+* input:
+* output:
+*/
+var getLineMerge = function(multiLineString){
+  return pg.raw("SELECT ST_AsText(ST_LineMerge('"+multiLineString+"'))")
+  .then(function(result){
+    return result.rows[0].st_astext;
+  });
+};
+
+
+/**
+* input:
+* output:
+*/
+var getIntersection = function(geom1, geom2){
+  return pg.raw("SELECT ST_AsText(ST_Intersection('"+geom1+"','"+geom2+"'))")
+  .then(function(result){
+    return result.rows[0].st_astext;
+  })
+};
+
+
+
+/**
+* input:    pathGeometry      (LineString)
+            parcelGeometries  (Array of GeoJSON)
+* output:
+*/
+var makeAlternativePath = function(lineString, geometries){
+  var cutLine;
+  var lineToCutOut;
+  return getGeometriesFromGids(geometries)
+  .then(function(polygons){
+    return makeMultiGeometry(polygons)
+    .then(function(multiPolygon){
+      return getDifference(lineString, multiPolygon)
+      .then(getTextFromGeoJSON)
+      .then(function(result){
+        cutLine = result;
+      })
+      .then(function(){
+        return getIntersection(lineString, multiPolygon)
+      })
+      .then(function(result){
+        lineToCutOut = result;
+        return polygons;
+      })
+    });
+  })
+  .map(function(polygons){
+    return getSplitPolygon(polygons, lineString)
+    .map(getTextFromGeoJSON)
+    .map(getExternalRing)
+    .then(function(result){
+      return getShorterOfTwoLineString(result);
+    })
+  })
+  .then(makeMultiGeometry)
+  .then(function(multiLineString){
+    return getDifference(multiLineString, lineToCutOut)
+    .then(getTextFromGeoJSON)
+  })
+  .then(function(lineToMerge){
+    return getLineMerge(lineToMerge)
+  })
+  .then(function(line){
+    return getSymDifference(cutLine, line);
+  });
+};
+
+
+// var qgisLineString = 'LINESTRING(1844936.586396238 649967.1455137864, 1844963.552273534 649864.4406941722)'
+var qgisLineString = 'LINESTRING(1844948.3 649934.9, 1847550.9 645370.2)';
+
+var linePath = 'LINESTRING(48 50, 50 125, 52 300)'
+var testRing = 'LINESTRING(25 150, 75 150, 75 100, 25 100, 25 150)'
+var testPoly = 'POLYGON((25 150, 75 150, 75 100, 25 100, 25 150))'
+var testPoly2 = 'POLYGON((25 250, 75 250, 75 200, 25 200, 25 250))'
+
+var lineToCutOut;
+var cutString;
+
+
+var makeMultiGeometry = function(geoms){
+  var arr = [];
+  for (var i=0; i<geoms.length; i++){
+    arr[i] = " ST_GeomFromText('"+geoms[i]+"')";
+  }
+  // console.log( "SELECT ST_AsText(ST_Union(ARRAY["+arr+"]));");
+  return pg.raw("SELECT ST_AsText(ST_Union(ARRAY["+arr+"]))")
+  .then(function(result){
+    return result.rows[0].st_astext;
+  })
+}
+
+
+
+
+
+
+
+
+
+
+makeAlternativePath(qgisLineString, [{gid: 3}, {gid: 5}])
+.then(function(x){
+  return pg.raw("SELECT ST_AsGeoJSON(ST_GeomFromText('"+x+"'))")
+  .then(function(y){
+    return y.rows[0].st_asgeojson;
+  })
+})
+.then(console.log);
+
+// pg.raw("SELECT ST_AsText(ST_MakePolygon('"+testRing+"'))")
+// .then(function(answer){
+//   return [ testPoly ];
+// })
+// .map(function(polygon){
+//   return getDifference(linePath, polygon)
+//   .then(getTextFromGeoJSON)
+//   .then(function(diff){
+//     cutString = diff;
+//     return polygon;
+//   })
+// })
+// .map(function(polygon){
+//   return getIntersection(linePath, polygon)
+//   .then(function(result){
+//     lineToCutOut = result;
+//     return polygon;
+//   })
+// })
+// .map(function(polygon){
+//   return getSplitPolygon(polygon, linePath)
+//   .map(getTextFromGeoJSON)
+//   .map(getExternalRing)
+//   .then(getShorterOfTwoLineString)
+// })
+// .map(function(line){
+//   return getDifference(line, lineToCutOut)
+//   .then(getTextFromGeoJSON);
+// })
+// .map(getLineMerge)
+// .map(function(line){
+//   return getSymDifference(cutString, line);
+// })
+// .map(function(x){
+//   console.log(x);
+// });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
