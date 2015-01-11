@@ -80,94 +80,9 @@ var getParcelGid = function(longitude, latitude){
 };
 
 
-<<<<<<< HEAD
-
-
-
-
-
-
-
-
-
-
-
-
-//*************************************************************************
-//          Drone Queries
-//*************************************************************************
-
-
-/**
-* input:  request.callSign, callsign of the associated drone
-          request.flightStart, the ISO string for the start date of the flight
-          request.flightEnd, the ISO string for th end date for the flight
-          request.path the nested tuple of coordinates
-* output: knex query that returns all the parcel geometries that intersect
-*/
-var getPathConflicts = function(request) {
-  var linestring = {'type':'LineString', 'coordinates':request.path};
-  var linestringValue = "ST_SetSRID(ST_GeomFromGeoJSON('" + JSON.stringify(linestring) + "'),102243)";
-
-  var intersectLine = 'ST_Intersects(' + linestringValue + ',' + 'hull_geom' + ')';
-  var restrictionOverlap = "('" + request.flightStart + "'::time, '" + request.flightEnd + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
-  var rawQuery = intersectLine + ' AND ' + restrictionOverlap + ';';
-
-  // where not in (
-  //    select owned_parcel_gid 
-  //    from restriction_exemption 
-  //    where call_sign=request.callSign 
-  //    AND flightStart > exemptionStart 
-  //    AND flightEnd < exemptionEnd
-  //)
-  //
-  // doesn't check exemption tables yet
-  return pg.select('owned_parcel_gid').from('restriction_exemption')
-  .where('drone_call_sign', request.callSign)
-  .andWhere('exemption_start', '<', request.flightStart)
-  .andWhere('exemption_end', '>', request.flightEnd)
-  .map(function(row) {
-    return row.owned_parcel_gid;
-  })
-  .then(function(owned_parcel_gids) {
-    return pg.select('gid').from('owned_parcel')
-           .whereNotIn('gid', owned_parcel_gids)
-           .whereRaw(rawQuery);
-  })
-  .catch(function(error) {
-    console.log(error);
-    return error;
-  });
-}
-
-/**
-* input:  request.callSign, callsign of the associated drone
-          request.flightStart, the ISO string for the start date of the flight
-          request.flightEnd, the ISO string for th end date for the flight
-          request.path the nested tuple of coordinates
-* output: knex query that adds a flight path or returns the geometries that do not allow the flight path to be added
-*/
-var addFlightPath = function(request){
-  var linestring = {'type':'LineString', 'coordinates':request.path};
-  var linestringValue = "ST_SetSRID(ST_GeomFromGeoJSON('" + JSON.stringify(linestring) + "'),102243)";
-  var columns = '(drone_call_sign,flight_start,flight_end,path_geom)';
-  var values =  "('" + request.callSign + "','" + request.flightStart + "','" + request.flightEnd + "'," + linestringValue +')';
-  var rawInsert = 'INSERT INTO flight_path ' + columns + ' VALUES ' + values + ' RETURNING gid;';
-  // and insert buffered flight path
-
-  return pg.raw(rawInsert);      
-};
-///////////////////////////////////////////////////////////////////////////////
-
-
-/**
-* input: [{gid: #},{gid: #},{gid: #}...]
-* output:
-=======
 /**
 * input:  [{gid: #},{gid: #},{gid: #}...]
 * output: promise with an array of geometries
->>>>>>> (doc) adds comments to new utility functions, describing inputs and outputs
 */
 var getGeometriesFromGids = function(gids, tableName, geomColName){
   var arr = [];
@@ -342,6 +257,28 @@ var makeMultiGeometry = function(geoms){
   })
 };
 
+/**
+* input:  geometry or text geometry
+* output: Geo JSON
+*/
+var getGeoJSONFromGeom = function(geom){
+  return pg.raw("SELECT ST_AsGeoJSON('"+geom+"')")
+  .then(function(result){
+    return result.rows[0].st_asgeojson;
+  })
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -362,48 +299,64 @@ var makeMultiGeometry = function(geoms){
 
 
 /**
-* input:  drone_id,  the id of the associated drone
-          drone_operator_id, the id of the associated operator
-          flight_start, the ISO string for the start date of the flight
-          flight_end, the ISO string for th end date for the flight
-          linestring_wgs84 the GeoJSON string for the proposed geometry.
+* input:  request.callSign, callsign of the associated drone
+          request.flightStart, the ISO string for the start date of the flight
+          request.flightEnd, the ISO string for th end date for the flight
+          request.path the nested tuple of coordinates
 * output: knex query that returns all the parcel geometries that intersect
 */
-var getPathConflicts = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
-  var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
+var getPathConflicts = function(request) {
+  var linestring = {'type':'LineString', 'coordinates':request.path};
+  var linestringValue = "ST_SetSRID(ST_GeomFromGeoJSON('" + JSON.stringify(linestring) + "'),102243)";
+
   var intersectLine = 'ST_Intersects(' + linestringValue + ',' + 'hull_geom' + ')';
-  var restrictionOverlap = "('" + flight_start + "'::time, '" + flight_end + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
+  var restrictionOverlap = "('" + request.flightStart + "'::time, '" + request.flightEnd + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
   var rawQuery = intersectLine + ' AND ' + restrictionOverlap + ';';
 
+  // where not in (
+  //    select owned_parcel_gid 
+  //    from restriction_exemption 
+  //    where call_sign=request.callSign 
+  //    AND flightStart > exemptionStart 
+  //    AND flightEnd < exemptionEnd
+  //)
+  //
   // doesn't check exemption tables yet
-
-  // should return the geometries from the wgs84_parcel 
-  console.log(rawQuery);
-  return pg.select('gid')
-    .from('owned_parcel')
-    .whereRaw(rawQuery);
-};
-
+  return pg.select('owned_parcel_gid').from('restriction_exemption')
+  .where('drone_call_sign', request.callSign)
+  .andWhere('exemption_start', '<', request.flightStart)
+  .andWhere('exemption_end', '>', request.flightEnd)
+  .map(function(row) {
+    return row.owned_parcel_gid;
+  })
+  .then(function(owned_parcel_gids) {
+    return pg.select('gid').from('owned_parcel')
+           .whereNotIn('gid', owned_parcel_gids)
+           .whereRaw(rawQuery);
+  })
+  .catch(function(error) {
+    console.log(error);
+    return error;
+  });
+}
 
 /**
-* input:  drone_id,  the id of the associated drone
-          drone_operator_id, the id of the associated operator
-          flight_start, the ISO string for the start date of the flight
-          flight_end, the ISO string for th end date for the flight
-          linestring_wgs84 the GeoJSON string for the proposed geometry.
+* input:  request.callSign, callsign of the associated drone
+          request.flightStart, the ISO string for the start date of the flight
+          request.flightEnd, the ISO string for th end date for the flight
+          request.path the nested tuple of coordinates
 * output: knex query that adds a flight path or returns the geometries that do not allow the flight path to be added
 */
-var addFlightPath = function(drone_id, drone_operator_id, flight_start, flight_end, linestring_wgs84) {
-  // if there are no restrictions insert into flight path
-  var linestringValue = 'ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(' + linestring_wgs84 + '),4326),102243)';
-  var insertLine = 'INSERT INTO flight_path (drone_id, drone_operator_id, flight_start, flight_end, path_geom)';
-  var valuesLine = 'VALUES (' + drone_id + ',' + drone_operator_id + ",'" + flight_start + "','" + flight_end + "'," + linestringValue +')';
-  var rawInsert = insertLine + ' ' + valuesLine + ' ' + 'RETURNING gid;';
-
+var addFlightPath = function(request){
+  var linestring = {'type':'LineString', 'coordinates':request.path};
+  var linestringValue = "ST_SetSRID(ST_GeomFromGeoJSON('" + JSON.stringify(linestring) + "'),102243)";
+  var columns = '(drone_call_sign,flight_start,flight_end,path_geom)';
+  var values =  "('" + request.callSign + "','" + request.flightStart + "','" + request.flightEnd + "'," + linestringValue +')';
+  var rawInsert = 'INSERT INTO flight_path ' + columns + ' VALUES ' + values + ' RETURNING gid;';
   // and insert buffered flight path
 
   return pg.raw(rawInsert);      
-};
+}
 
 
 /**
@@ -467,17 +420,13 @@ var makeAlternativePath = function(lineString, geometries){
 
 
 
-var qgisLineString = 'LINESTRING(1844948.3 649934.9, 1847550.9 645370.2)';
+// Example makeAlternaivePath (assuming gid:3 and gid:5 exist & are referencing the same
+// parcels that I used for testing)
 
-
-makeAlternativePath(qgisLineString, [{gid: 3}, {gid: 5}])
-.then(function(x){
-  return pg.raw("SELECT ST_AsGeoJSON(ST_GeomFromText('"+x+"'))")
-  .then(function(y){
-    return y.rows[0].st_asgeojson;
-  })
-})
-.then(console.log);
+// var qgisLineString = 'LINESTRING(1844948.3 649934.9, 1847550.9 645370.2)';
+// makeAlternativePath(qgisLineString, [{gid: 3}, {gid: 5}])
+// .then(getGeoJSONFromGeom)
+// .then(console.log);
 
 
 
@@ -507,5 +456,6 @@ module.exports = {
   convertToConvexHull:        convertToConvexHull,
   getParcelGid:               getParcelGid,
   addFlightPath:              addFlightPath,
-  getPathConflicts:           getPathConflicts
+  getPathConflicts:           getPathConflicts,
+  makeAlternativePath:        makeAlternativePath
 }
