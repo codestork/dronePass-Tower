@@ -1,5 +1,7 @@
 var request = require('request');
 var utils = require('./db/utils');
+var proj4 = require('proj4');
+proj4.defs("ESRI:102243","+proj=lcc +lat_1=37.06666666666667 +lat_2=38.43333333333333 +lat_0=36.5 +lon_0=-120.5 +x_0=2000000 +y_0=500000 +ellps=GRS80 +units=m +no_defs");
 
 var port = process.env.PORT || 8080;
 var io = require('socket.io')(port);
@@ -31,8 +33,15 @@ io.on('connection', function(socket){
 // Client Server Communication
 //*********************************************************
 
-  socket.on('CT_allDronesState', function(msg){
-    socket.emit('update', drones);
+  socket.on('CT_allDronesStates', function(msg){
+    tSay('Sending drone list to Client Server');
+    for(callSign in drones){
+      // if (!drones[callSign].locationWGS84)
+      drones[callSign].locationWGS84 = [];
+      drones[callSign].locationWGS84 = proj4("ESRI:102243", "WGS84", drones[callSign].location);
+      console.log(drones[callSign].locationWGS84);
+    }
+    socket.emit('TC_update', drones);
   });
 
   
