@@ -1,8 +1,5 @@
 var request = require('request');
 var utils = require('./db/utils');
-var NanoTimer = require('nanotimer');
-
-var timer = new NanoTimer();
 
 var port = process.env.PORT || 8080;
 var io = require('socket.io')(port);
@@ -115,9 +112,9 @@ io.on('connection', function(socket){
 
 
   // Tower requests all drones for an update every 4 seconds
-  timer.setInterval(function(){
+  setInterval(function(){
     socket.emit('TD_update', {});
-  }, '', '4s');
+  }, 4000);
 
   // On detect restriction zone 3 min ahead (interval check?)
   // tSay(transcript)
