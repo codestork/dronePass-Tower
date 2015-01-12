@@ -17,7 +17,20 @@ var tSay = function(msg) {
 }
 
 // Drones that we are currently connected with
-var drones = {};
+var drones = {
+  /*
+  <callSign>: {
+                <callSign>:,
+                <location>:,
+                <speed>:,
+                <prevPathPtInd>:,
+                <dist>:,
+                <statusCode>:,
+                <transcript>:
+              },
+              ...
+  */
+};
 
 io.on('connection', function(socket){
 
@@ -120,10 +133,23 @@ io.on('connection', function(socket){
   });
 
 
-  // Tower requests all drones for an update every 4 seconds
+  // Tower requests all drones for an update every N milliseconds
   setInterval(function(){
+    console.log('EMIT UPDATE');
     socket.emit('TD_update', {});
   }, 4000);
+
+  // Tower checks for drone flight path conflicts
+  // every N milliseconds
+  var checkForPathConflicts = function(){
+    for(var i in drones){
+      // do a check
+      drones[i];
+      drones[i].callSign;
+      console.log(i);
+    }
+  };
+  setInterval(checkForPathConflicts, 12000);
 
   // On detect restriction zone 3 min ahead (interval check?)
   // tSay(transcript)
