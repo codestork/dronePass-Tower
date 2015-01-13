@@ -1,4 +1,5 @@
 var pg = require('./config.js');
+//var pg = require('./testConfig.js');
 var st = require('knex-postgis')(pg);
 
 var BUFFER_OFFSET = 5; // 5 METERS
@@ -360,6 +361,113 @@ var addFlightPath = function(request){
 
 
 /**
+stages = {
+  conflict: {
+    parcel: multiPolygon,
+    flightPath: linestring
+  },
+  split: {
+    parcel: multiPolygon,
+    flightPath: cutLine
+  },
+  ring: {
+    
+  },
+  rout: {
+    flightPath: lineString
+  }
+}
+*/
+var alternativePathPieces = function(linestring, geometries){
+  var cutLine;
+  var lineToCutOut;
+  var stages = {};
+  // make union of all geoms
+  // Break apart lineString (as cutLine) 
+  // to no longer intersect with geometries
+  // Save removed segments (as lineToCutOut)
+  return getGeometriesFromGids(geometries)
+  .then(function(polygons){
+    return makeMultiGeometry(polygons)
+    .then(function(multiPolygon){
+      /**
+      conflict: {
+        parcel: multiPolygon,
+        flightPath: linestring
+      }
+      **/
+      stages['conflict'] = { 
+        parcel: multiPolygon,
+        flightPath: linestring
+      };
+      return getDifference(lineString, multiPolygon)
+      .then(getTextFromGeoJSON)
+      .then(function(result){
+        cutLine = result;
+        /**
+        split: {
+          parcel: multiPolygon,
+          flightPath: cutLine
+        }
+        **/
+        stages['split'] = { 
+          //parcel: multiPolygon,
+          flightPath: cutLine,
+          parcel: []
+        };
+      })
+      .then(function(){
+        return getIntersection(lineString, multiPolygon)
+      })
+      .then(function(result){
+        lineToCutOut = result;
+        return polygons;
+      })
+    });
+  })
+  // Split given polygons by lineString
+  // to get a ringLineString(multilinestring) of the smaller
+  // line segments made by the polygon splits
+  .map(function(polygons){
+    return getSplitPolygon(polygons, lineString)
+    .map(getTextFromGeoJSON)
+    .then(function(splitPolygons) {
+      stages['split']['parcel'].push(splitPolygons);
+      return splitPolygons;
+    })
+    .map(getExternalRing)
+    .then(function(result){
+      return getShorterOfTwoLineString(result);
+    })
+  })
+  .then(makeMultiGeometry)
+  .then(function(ringLineString){
+    stages['ring'] = { 
+      parcel: ringLineString,
+      flightPath: cutLine
+    };
+    return getDifference(ringLineString, lineToCutOut)
+    .then(getTextFromGeoJSON)
+  })
+  // Might be optional. Merges some line segments
+  .then(function(lineToMerge){
+    return getLineMerge(lineToMerge)
+  })
+  // Merges the paths around parcel with the cut
+  // up original lineString
+  .then(function(line){
+    return getSymDifference(cutLine, line)
+    .then(function(result) {
+      stages['reroute'] = {
+        flightPath: result
+      };
+
+      return stages;
+    });
+  });
+}
+
+/**
 * input:    pathGeometry      (LineString)
             parcelGeometries  (Array of gids)
 * output:   LineString of new path that goes around
@@ -368,6 +476,7 @@ var addFlightPath = function(request){
 var makeAlternativePath = function(lineString, geometries){
   var cutLine;
   var lineToCutOut;
+  // make union of all geoms
   // Break apart lineString (as cutLine) 
   // to no longer intersect with geometries
   // Save removed segments (as lineToCutOut)
@@ -390,7 +499,7 @@ var makeAlternativePath = function(lineString, geometries){
     });
   })
   // Split given polygons by lineString
-  // to get a MultiLineString of the smaller
+  // to get a ringLineString(multilinestring) of the smaller
   // line segments made by the polygon splits
   .map(function(polygons){
     return getSplitPolygon(polygons, lineString)
@@ -401,8 +510,8 @@ var makeAlternativePath = function(lineString, geometries){
     })
   })
   .then(makeMultiGeometry)
-  .then(function(multiLineString){
-    return getDifference(multiLineString, lineToCutOut)
+  .then(function(ringLineString){
+    return getDifference(ringLineString, lineToCutOut)
     .then(getTextFromGeoJSON)
   })
   // Might be optional. Merges some line segments
