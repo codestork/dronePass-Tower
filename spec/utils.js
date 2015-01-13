@@ -1,9 +1,11 @@
 var path = require('path');
 var expect = require('chai').expect;
+//var pg = require(path.join(__dirname, '..', './server/db/testConfig.js'));
 var pg = require(path.join(__dirname, '..', './server/db/config.js'));
 var utils = require(path.join(__dirname, '..', './server/db/utils.js'));
+var st = require('knex-postgis')(pg);
 
-var TIME_OUT = 250;
+var TIME_OUT = 1000;
 
 var pathCoords3 = [[1886555.8045440218,614332.6659284362],[1886800.1148899796,612866.8038526904],[1888455.9961236925,613328.2789506103],[1887953.8026347796,612513.9111307516]];
 var callSign = 'Test';//INSERT INTO drone (call_sign, drone_type, max_velocity) VALUES ('Test', 'Amazon', 10);
@@ -11,11 +13,9 @@ var droneOperatorId = 12345;//INSERT INTO drone_operator (id, operator_name) VAL
     // INSERT INTO land_owner (id, login) VALUES (12345, 'yo@yo.yo');
     // INSERT INTO land_owner (id, login) VALUES (23456, 'bo@bo.bo');
     // INSERT INTO land_owner (id, login) VALUES (34567, 'mo@mo.mo');
-    // registerAddress(12345, 70371, '04:05:06', '10:05:06');
-    // registerAddress(23456, 70199, null, null);
-    // registerAddress(34567, 70640, '04:05:06', '10:05:06');
+    
     // INSERT INTO restriction_exemption (drone_call_sign, owned_parcel_gid, exemption_start, exemption_end) VALUES ('Test', 15, '1999-01-08 00:00:00', '1999-01-08 23:59:59');
-
+//-121.793602174, 37.5605355809, apn : 96-100-23
 var request = {
   callSign : callSign,
   flightStart : '1999-01-08 04:05:06',
@@ -24,12 +24,47 @@ var request = {
   path : pathCoords3
 };
 
+// temp. this should be replaced with scripts that run
+var registerAddress = function(land_owner_id, parcel_gid, time_start, time_end) 
+{
+  pg.select(st.asText('lot_geom'))
+  .from('parcel')
+  .where('gid', parcel_gid)
+  .then(function(result){
+    pg.raw("SELECT ST_SetSRID(ST_ConvexHull(ST_GeomFromText('"+result[0].lot_geom+"')), 102243)")
+    .then(function(r){
+      return r.rows[0].st_setsrid;
+    });
+  })
+  // All the data is ready. Now inserts row to owned_parcel
+  .then(function(geom){
+    return pg('owned_parcel').insert({
+      land_owner_id: land_owner_id,
+      parcel_gid: parcel_gid,
+      hull_geom: geom,
+      restriction_height: 0,
+      restriction_start: time_start,
+      restriction_end: time_end}, 
+      ['gid', 'land_owner_id', 'parcel_gid', 'restriction_height', 'restriction_start', 'restriction_end'])
+      .exec(function(err, rows){});
+  });
+};
+
+var getAPNByGeography = function(longitude, latitude){
+  return pg.select(['apn','gid'])
+  .from('parcel')
+  .whereRaw("ST_Contains(lot_geom, ST_Transform(ST_GeometryFromText('POINT("+longitude+" "+latitude+")',4326), 102243))");
+};
+
 describe('addFlightPath()', function () {
   'use strict';
 
   beforeEach(function(done) {
     request.flightStart = '1999-01-08 04:05:06';
     request.flightEnd = '1999-01-08 10:05:06';
+    registerAddress(12345, 70371, '04:05:06', '10:05:06');
+    registerAddress(23456, 70199, null, null);
+    registerAddress(34567, 70640, '04:05:06', '10:05:06');
     done();
   });
 
@@ -88,6 +123,11 @@ describe('getPathConflicts()', function() {
       }
 
       resultsLength = r.length;
+      if (resultsLength === 0) {
+        expect(resultsLength).to.equal(1);
+        done();
+        return;
+      }
       utils.getParcelGeometryText(r[0].gid, 'parcel_wgs84').exec(function(err, r) {
         result = r;
       });
@@ -105,11 +145,11 @@ describe('getPathConflicts()', function() {
     request.path = pathCoordsWrong;
     var result;
     utils.getPathConflicts(request).exec(function(err, r) {
-      result = r;
+      result = r.length;
     });
     
     setTimeout(function() {
-      expect(result.length).to.equal(0);
+      expect(result).to.equal(0);
       done();
     }, TIME_OUT);    
   });
