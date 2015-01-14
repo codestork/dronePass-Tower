@@ -298,6 +298,34 @@ var getGeoJSONFromGeom = function(geom){
 //          Drone Queries
 //*************************************************************************
 
+/**
+* input:  call sign (STRING)
+* output: promise with operator id, flight start time, flight end time, and path_geom
+*/
+var getFlightData = function(callSign){
+  return pg.select(pg.raw("drone_operator_id, flight_start::time, flight_end::time, ST_AsGeoJSON(path_geom)"))
+  // return pg.select(pg.raw("drone_operator_id, flight_start, flight_end, ST_AsGeoJSON(path_geom)"))
+  .from('flight_path')
+  .where('drone_call_sign', callSign)
+  .map(function(result){
+    result.path_geom = result.st_asgeojson;
+    delete result.st_asgeojson;
+    return result;
+  })
+};
+// var lineStr = "LINESTRING((1862897.3 631899.7, 1862961.1 632124.5))";
+
+
+/**
+* input:  call sign (STRING)
+* output: deletes row with matching call sign and returns a promise
+*/
+var removeFlightPath = function(callSign){
+  return pg('flight_path')
+  .where('drone_call_sign', callSign)
+  .delete();
+};
+
 
 /**
 * input:  request.callSign, callsign of the associated drone
@@ -467,6 +495,20 @@ var alternativePathPieces = function(linestring, geometries){
   });
 }
 
+
+/*
+* input:  callSign  (STRING)
+          path      (GeoJSON)
+* output: updates flight_path table with a new path for given call sign
+*/
+var updateFlightPath = function(callSign, path){
+  // return pg("flight_path")
+  // .where("drone_call_sign", callSign)
+  // .update("path_geom", st.geomFromGeoJSON(path, 102243))
+  return pg.raw("UPDATE flight_path SET path_geom = ST_SetSRID(ST_GeomFromGeoJSON('"+path+"'),102243) WHERE drone_call_sign='"+callSign+"'")
+};
+
+
 /**
 * input:    pathGeometry      (LineString)
             parcelGeometries  (Array of gids)
@@ -526,6 +568,48 @@ var makeAlternativePath = function(lineString, geometries){
 };
 
 
+/*
+* input:  callSign         (STRING)
+          timeBufPrevPtInd (INTEGER)
+* output: promise with a new LineString if there is a conflict and null if no conflict
+*/
+var checkForPathConflicts = function(callSign, timeBufPrevPtInd){
+  var droneCheck = {};
+  droneCheck.callSign = callSign;
+  return getFlightData(callSign)
+  .then(function(flightData){
+    var timestampPrefix = "2000-11-11 "; // hackish fix to timestamp/zone issues
+    droneCheck.flightStart = timestampPrefix + flightData[0].flight_start;
+    droneCheck.flightEnd = timestampPrefix + flightData[0].flight_end;
+    droneCheck.pathAsGeoJSON = flightData[0].path_geom;
+
+    path = JSON.parse(flightData[0].path_geom).coordinates;
+    path = path.slice(timeBufPrevPtInd)
+
+    droneCheck.path = path;
+    return droneCheck;
+  })
+  .then(getPathConflicts)
+  .then(function(gids){
+    // There is at least one Conflicting Hull Geometry
+    if (gids.length > 0) {
+      return getTextFromGeoJSON(droneCheck.pathAsGeoJSON)
+      .then(function(lineString){
+        return makeAlternativePath(lineString, gids)
+        .then(getGeoJSONFromGeom);
+      });
+    // No Conflicting Hull Geometries
+    } else {
+      return null;
+    }
+  })
+  .catch(function(error){
+    console.log(error);
+    return error;
+  })
+};
+
+
 
 
 
@@ -561,10 +645,15 @@ module.exports = {
   // General
   getParcelGeometryJSON:      getParcelGeometryJSON,
   getParcelGeometryText:      getParcelGeometryText,
-  getParcelGidByGeography:    getParcelGidByGeography, 
+  getParcelGidByGeography:    getParcelGidByGeography,
   convertToConvexHull:        convertToConvexHull,
+  getGeoJSONFromGeom:         getGeoJSONFromGeom,
+  getTextFromGeoJSON:         getTextFromGeoJSON,
   getParcelGid:               getParcelGid,
+  getFlightData:              getFlightData,
   addFlightPath:              addFlightPath,
+  updateFlightPath:           updateFlightPath,
   getPathConflicts:           getPathConflicts,
-  makeAlternativePath:        makeAlternativePath
+  makeAlternativePath:        makeAlternativePath,
+  checkForPathConflicts:      checkForPathConflicts
 }
