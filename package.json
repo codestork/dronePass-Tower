@@ -4,7 +4,9 @@
   "description": "dronePass-Tower",
   "main": "./server/server.js",
   "scripts": {
-    "test": "mocha ./spec/utils.js"
+    "pretest": "echo pretest",
+    "test": "mocha ./spec/utils.js || :",
+    "posttest": "echo posttest"
   },
   "repository": {
     "type": "git",
