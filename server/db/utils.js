@@ -428,7 +428,7 @@ var alternativePathPieces = function(linestring, geometries){
         parcel: multiPolygon,
         flightPath: linestring
       };
-      return getDifference(lineString, multiPolygon)
+      return getDifference(linestring, multiPolygon)
       .then(getTextFromGeoJSON)
       .then(function(result){
         cutLine = result;
@@ -445,7 +445,7 @@ var alternativePathPieces = function(linestring, geometries){
         };
       })
       .then(function(){
-        return getIntersection(lineString, multiPolygon)
+        return getIntersection(linestring, multiPolygon)
       })
       .then(function(result){
         lineToCutOut = result;
@@ -457,7 +457,7 @@ var alternativePathPieces = function(linestring, geometries){
   // to get a ringLineString(multilinestring) of the smaller
   // line segments made by the polygon splits
   .map(function(polygons){
-    return getSplitPolygon(polygons, lineString)
+    return getSplitPolygon(polygons, linestring)
     .map(getTextFromGeoJSON)
     .then(function(splitPolygons) {
       stages['split']['parcel'].push(splitPolygons);
@@ -489,11 +489,73 @@ var alternativePathPieces = function(linestring, geometries){
       stages['reroute'] = {
         flightPath: result
       };
-
       return stages;
     });
+  })
+
+  //*******************************************************
+  // Formatting to GeoJSON Section
+  //*******************************************************
+  .then(function(){
+    // CONFLICT
+    return getGeoJSONFromGeom(stages.conflict.parcel)
+    .then(function(geoJSON){
+      stages.conflict.parcel = geoJSON;
+    })
+    .then(function(){
+      return getGeoJSONFromGeom(stages.conflict.flightPath)
+      .then(function(geoJSON){
+        stages.conflict.flightPath = geoJSON;
+      })
+    })
+    // SPLIT
+    .then(function(){
+      return getGeoJSONFromGeom(stages.split.flightPath)
+      .then(function(geoJSON){
+        stages.split.flightPath = geoJSON;
+        return stages.split.parcel;
+      })
+    })
+    .map(function(parcel){
+      var pairOne, pairTwo;
+      return getGeoJSONFromGeom(parcel[0])
+      .then(function(geoJSON){
+        pairOne = geoJSON;
+      })
+      .then(function(){return getGeoJSONFromGeom(parcel[1])})
+      .then(function(geoJSON){
+        pairTwo = geoJSON;
+        return [pairOne,pairTwo];
+      });
+    })
+    .then(function(parcel){
+      stages.split.parcel = parcel;
+      return stages;
+    })
+    // RING
+    .then(function(){
+      return getGeoJSONFromGeom(stages.ring.parcel)
+      .then(function(geoJSON){
+        stages.ring.parcel = geoJSON;
+      })
+    })
+    .then(function(){
+      return getGeoJSONFromGeom(stages.ring.flightPath)
+      .then(function(geoJSON){
+        stages.ring.flightPath = geoJSON;
+      })
+    })
+    // REROUTE
+    .then(function(){
+      return getGeoJSONFromGeom(stages.reroute.flightPath)
+      .then(function(geoJSON){
+        stages.reroute.flightPath = geoJSON;
+        return stages;
+      })
+    })
+
   });
-}
+};
 
 
 /*
@@ -595,8 +657,9 @@ var checkForPathConflicts = function(callSign, timeBufPrevPtInd){
     if (gids.length > 0) {
       return getTextFromGeoJSON(droneCheck.pathAsGeoJSON)
       .then(function(lineString){
-        return makeAlternativePath(lineString, gids)
-        .then(getGeoJSONFromGeom);
+        return alternativePathPieces(lineString, gids);
+        // return makeAlternativePath(lineString, gids)
+        // .then(getGeoJSONFromGeom);
       });
     // No Conflicting Hull Geometries
     } else {
