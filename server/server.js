@@ -6,6 +6,11 @@ proj4.defs("ESRI:102243","+proj=lcc +lat_1=37.06666666666667 +lat_2=38.433333333
 var port = process.env.PORT || 8080;
 var io = require('socket.io')(port);
 
+var CHECK_CONFLICT_INTERVAL = 12000;
+var CHECK_IF_PATH_IS_UPDATED_INTERVAL = 30000;
+var UPDATE_INTERVAL = 4000;
+
+
 var dSay = function(msg) {
   console.log(msg);
   // push to some MQ or other storages for TTS
@@ -156,6 +161,7 @@ io.on('connection', function(socket){
     .then(function(result){
       console.log('updated database')
       console.log(result)
+      delete pendingPathUpdates[msg.callSign];
     })
     .catch(function(error){
       console.log(error);
@@ -171,7 +177,7 @@ io.on('connection', function(socket){
   setInterval(function(){
     tSay("Tower requesting updates from all drones.");
     socket.emit('TD_update', {});
-  }, 4000);
+  }, UPDATE_INTERVAL);
 
 
   // Tower checks for path conflicts every N milliseconds
@@ -186,14 +192,14 @@ io.on('connection', function(socket){
         // save path & timeBufPrevPtInd locally
       });
     }
-  }, 12000);
+  }, CHECK_CONFLICT_INTERVAL);
 
   // Tower resubmits messages for drones to update paths
   setInterval(function(){
     for(var i in pendingPathUpdates){
       socket.emit("TD_changeRoute", pendingPathUpdates[i]);
     }
-  }, 30000)
+  }, CHECK_IF_PATH_IS_UPDATED_INTERVAL);
 
 
 });
