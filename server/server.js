@@ -6,6 +6,11 @@ proj4.defs("ESRI:102243","+proj=lcc +lat_1=37.06666666666667 +lat_2=38.433333333
 var port = process.env.PORT || 8080;
 var io = require('socket.io')(port);
 
+var CHECK_CONFLICT_INTERVAL = 12000;
+var CHECK_IF_PATH_IS_UPDATED_INTERVAL = 30000;
+var UPDATE_INTERVAL = 4000;
+
+
 var dSay = function(msg) {
   console.log(msg);
   // push to some MQ or other storages for TTS
@@ -17,7 +22,30 @@ var tSay = function(msg) {
 }
 
 // Drones that we are currently connected with
-var drones = {};
+var drones = {
+  /*
+  <callSign>: {
+                <callSign>:,
+                <location>:,
+                <speed>:,
+                <prevPathPtInd>:,
+                <dist>:,
+                <statusCode>:,
+                <transcript>:
+              },
+              ...
+  */
+};
+var pendingPathUpdates = {
+  /*
+  <callSign>: {
+    <callSign>,
+    <path>,
+    <timeBufPrevPtInd>
+  }
+  */
+};
+
 
 io.on('connection', function(socket){
 
@@ -44,16 +72,9 @@ io.on('connection', function(socket){
     socket.emit('TC_update', drones);
   });
 
-  
-  socket.on('DT_addFlightPath', function(request) {
-  /* input:  request.drone_id,  the id of the associated drone
-          request.drone_operator_id, the id of the associated operator
-          request.flight_start, the ISO string for the start date of the flight
-          request.flight_end, the ISO string for th end date for the flight
-          request.flightPathWGS84 the GeoJSON string for the proposed geometry.*/
 
 
- });
+
 
 
 //*********************************************************
@@ -62,21 +83,21 @@ io.on('connection', function(socket){
 
   socket.on('DT_update', function(msg){
     dSay(msg.transcript);
+    tSay("Tower received "+msg.callSign+"'s update.");
     drones[msg.callSign] = msg;
-
-    for ( d in drones ) {
-      console.log(drones[d]);
-    }
   });
 
 
   socket.on('DT_ack', function(msg){
     dSay(msg.transcript);
+    tSay("Tower acknowledges "+msg.callSign+".");
   });
 
 
   socket.on('DT_register', function(msg){
     dSay(msg.transcript);
+    tSay("Tower registering "+msg.callSign+".");
+    // Put drone in local storage
     drones[msg.callSign] = msg;
 
     socket.emit('TD_fileInFlightPlan');
@@ -91,28 +112,31 @@ io.on('connection', function(socket){
     // var approved = utils.checkPathConflicts(path stuff);
     utils.getPathConflicts(request).exec(function(err, pathConflicts) {
       if (err) {
+        tSay("Tower received and rejects "+msg.callSign+"'s flight plan. Flight plan error.");
         socket.emit('TD_flightPlanDecision', {approved: false, error: err});
       }
       else if (pathConflicts.length === 0) {
         utils.addFlightPath(request).exec(function(err, pathInfo) {
           if (err) {
+            tSay("Tower received and rejects "+msg.callSign+"'s flight plan. Flight plan error.");
             socket.emit('TD_flightPlanDecision', {approved: false, error: err});
           } else {
+            tSay("Tower received and approves "+msg.callSign+"'s flight plan.");
             socket.emit('TD_flightPlanDecision', {approved: true});
           }
         });
       } else {
+        tSay("Tower received and rejects "+msg.callSign+"'s flight plan. Flight plan restricted parcel conflicts.")
         socket.emit('TD_flightPlanDecision', {approved: false, pathConflicts: pathConflicts});
       }
     });
 
-
-    socket.emit('TD_flightPlanDecision', {approved: true});
   });
 
 
   socket.on('DT_readyTakeOff', function(msg){
     dSay(msg.transcript);
+    tSay("Acknowledged. "+callSign+", initiate take off.");
     drones[msg.callSign] = msg;
 
     // maybe add some checks/tests b4 take off
@@ -120,19 +144,74 @@ io.on('connection', function(socket){
   });
 
 
-  // Tower requests all drones for an update every 4 seconds
-  setInterval(function(){
-    socket.emit('TD_update', {});
-  }, 4000);
+  socket.on("DT_updateAck",function(msg){
+    dSay(msg.transcript);
+    tSay("Tower now updating flight path in database");
 
-  // On detect restriction zone 3 min ahead (interval check?)
-  // tSay(transcript)
-  // socket.emit('TD_notify',{transcript})
-  //
-  // On reroute creation
-  // socket.emit('TD_changeRoute', {pivotPointInd, substitutePath})
+    // store route into the database
+    var pathUpdate = pendingPathUpdates[msg.callSign];
+
+    utils.getFlightData(msg.callSign)
+    .then(function(pathData){
+      var originalPath = JSON.parse(pathData[0].path_geom);
+      var newPath = originalPath.coordinates.slice(0,pathUpdate.timeBufPrevPtInd).concat(pathUpdate.path);
+      var newPathGeoJSON = JSON.stringify({"type":"LineString","coordinates":newPath});
+      return utils.updateFlightPath(msg.callSign, newPathGeoJSON)
+    })
+    .then(function(result){
+      console.log('updated database')
+      console.log(result)
+      delete pendingPathUpdates[msg.callSign];
+    })
+    .catch(function(error){
+      console.log(error);
+    });
+  });
+
+
+
+
+
+
+  // Tower requests all drones for an update every N milliseconds
+  setInterval(function(){
+    tSay("Tower requesting updates from all drones.");
+    socket.emit('TD_update', {});
+  }, UPDATE_INTERVAL);
+
+
+  // Tower checks for path conflicts every N milliseconds
+  setInterval(function(){
+    for(var i in drones){
+      checkForPathConflicts(drones[i].callSign, drones[i].timeBufPrevPtInd)
+      .then(function(path){
+        if (path) {
+          pendingPathUpdates[drones[i].callSign] = {"callSign": drones[i].callSign, "path": path, "timeBufPrevPtInd": drones[i].timeBufPrevPtInd}
+          socket.emit("TD_changeRoute", pendingPathUpdates[drones[i].callSign]);
+        }
+        // save path & timeBufPrevPtInd locally
+      });
+    }
+  }, CHECK_CONFLICT_INTERVAL);
+
+  // Tower resubmits messages for drones to update paths
+  setInterval(function(){
+    for(var i in pendingPathUpdates){
+      socket.emit("TD_changeRoute", pendingPathUpdates[i]);
+    }
+  }, CHECK_IF_PATH_IS_UPDATED_INTERVAL);
+
 
 });
+
+
+
+
+
+
+
+
+
 
 
 // Client Example
