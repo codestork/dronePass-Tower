@@ -100,7 +100,16 @@ io.on('connection', function(socket){
     // Put drone in local storage
     drones[msg.callSign] = msg;
 
-    socket.emit('TD_fileInFlightPlan');
+    // Put drone in database
+    utils.addDrone(msg.callSign, 1, 10)
+    .then(function(result){
+      console.log('REGISTERED/UPDATED A DRONE')
+      socket.emit('TD_fileInFlightPlan');
+    })
+    .catch(function(error){
+      console.log('Add Drone Error: ',error)
+    })
+
   });
 
 
@@ -110,14 +119,16 @@ io.on('connection', function(socket){
 
     // check flight path
     // var approved = utils.checkPathConflicts(path stuff);
-    utils.getPathConflicts(request).exec(function(err, pathConflicts) {
+    utils.getPathConflicts(msg).exec(function(err, pathConflicts) {
       if (err) {
+        console.log('first error', err);
         tSay("Tower received and rejects "+msg.callSign+"'s flight plan. Flight plan error.");
         socket.emit('TD_flightPlanDecision', {approved: false, error: err});
       }
       else if (pathConflicts.length === 0) {
-        utils.addFlightPath(request).exec(function(err, pathInfo) {
+        utils.addFlightPath(msg).exec(function(err, pathInfo) {
           if (err) {
+            console.log('second error', err);
             tSay("Tower received and rejects "+msg.callSign+"'s flight plan. Flight plan error.");
             socket.emit('TD_flightPlanDecision', {approved: false, error: err});
           } else {
@@ -126,6 +137,8 @@ io.on('connection', function(socket){
           }
         });
       } else {
+        console.log("error: ",err);
+        console.log("pathConflicts: ",pathConflicts);
         tSay("Tower received and rejects "+msg.callSign+"'s flight plan. Flight plan restricted parcel conflicts.")
         socket.emit('TD_flightPlanDecision', {approved: false, pathConflicts: pathConflicts});
       }
@@ -136,7 +149,7 @@ io.on('connection', function(socket){
 
   socket.on('DT_readyTakeOff', function(msg){
     dSay(msg.transcript);
-    tSay("Acknowledged. "+callSign+", initiate take off.");
+    tSay("Acknowledged. "+msg.callSign+", initiate take off.");
     drones[msg.callSign] = msg;
 
     // maybe add some checks/tests b4 take off

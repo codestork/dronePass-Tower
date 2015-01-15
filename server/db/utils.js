@@ -299,6 +299,47 @@ var getGeoJSONFromGeom = function(geom){
 //*************************************************************************
 
 /**
+* input:  call sign
+*         drone type
+*         max velocity
+* output: knex query that inserts a row to drone table
+*/
+var addDrone = function(callSign, droneType, maxVelocity) {
+  return pg('drone')
+  .select('call_sign', 'drone_type', 'max_velocity')
+  .where('call_sign', callSign)
+  .then(function(r){
+    if (r.length === 0) {
+
+      return pg('drone')
+      .insert({
+        call_sign: callSign,
+        drone_type: droneType,
+        max_velocity: maxVelocity
+      }, ['call_sign', 'drone_type', 'max_velocity']);
+
+    } else {
+
+      return r[0];
+
+    }
+  })
+}
+// addDrone('Tango-Alfa-Victor-2-4-7', 1, 10).then(console.log).catch(console.log);
+
+
+/**
+* input:  call sign
+* output: knex query that removes a row in the drone table
+*/
+var removeDrone = function(callSign) {
+  return pg('drone')
+  .where('call_sign',callSign)
+  .delete();
+}
+
+
+/**
 * input:  call sign (STRING)
 * output: promise with operator id, flight start time, flight end time, and path_geom
 */
@@ -351,10 +392,11 @@ var getPathConflicts = function(request) {
   //)
   //
   // doesn't check exemption tables yet
+
   return pg.select('owned_parcel_gid').from('restriction_exemption')
   .where('drone_call_sign', request.callSign)
-  .andWhere('exemption_start', '<', request.flightStart)
-  .andWhere('exemption_end', '>', request.flightEnd)
+  // .andWhere('exemption_start', '<', request.flightStart)
+  // .andWhere('exemption_end', '>', request.flightEnd)
   .map(function(row) {
     return row.owned_parcel_gid;
   })
@@ -384,8 +426,22 @@ var addFlightPath = function(request){
   var rawInsert = 'INSERT INTO flight_path ' + columns + ' VALUES ' + values + ' RETURNING gid;';
   // and insert buffered flight path
 
-  return pg.raw(rawInsert);      
+  // return pg.raw(rawInsert);
+  return pg.select("drone_call_sign")
+  .from("flight_path")
+  .where("drone_call_sign", request.callSign)
+  .then(function(results){
+    if (results.length === 0) {
+      return pg.raw(rawInsert);
+    } else {
+      return removeFlightPath(request.callSign)
+      .then(function(){
+        return pg.raw(rawInsert);
+      })
+    }
+  });
 }
+// Write new addFlight path that useses UPDATE and WHERE NOT EXISTS
 
 
 /**
@@ -713,6 +769,8 @@ module.exports = {
   getGeoJSONFromGeom:         getGeoJSONFromGeom,
   getTextFromGeoJSON:         getTextFromGeoJSON,
   getParcelGid:               getParcelGid,
+  addDrone:                   addDrone,
+  removeDrone:                removeDrone,
   getFlightData:              getFlightData,
   addFlightPath:              addFlightPath,
   updateFlightPath:           updateFlightPath,
