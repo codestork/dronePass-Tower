@@ -183,16 +183,21 @@ io.on('connection', function(socket){
   // Tower checks for path conflicts every N milliseconds
   setInterval(function(){
     for(var i in drones){
-      checkForPathConflicts(drones[i].callSign, drones[i].timeBufPrevPtInd)
-      .then(function(path){
-        if (path) {
-          pendingPathUpdates[drones[i].callSign] = {"callSign": drones[i].callSign, "path": path, "timeBufPrevPtInd": drones[i].timeBufPrevPtInd}
+      utils.checkForPathConflicts(drones[i].callSign, drones[i].timeBufPrevPtInd)
+      .then(function(fullReroutePackage){
+        if (fullReroutePackage) {
+          pendingPathUpdates[drones[i].callSign] = {
+            "callSign": drones[i].callSign,
+            "path": JSON.parse(fullReroutePackage.reroute.flightPath).coordinates,
+            "timeBufPrevPtInd": drones[i].timeBufPrevPtInd
+          }
           socket.emit("TD_changeRoute", pendingPathUpdates[drones[i].callSign]);
+          socket.emit("TTC_update", fullReroutePackage);
         }
-        // save path & timeBufPrevPtInd locally
       });
     }
   }, CHECK_CONFLICT_INTERVAL);
+
 
   // Tower resubmits messages for drones to update paths
   setInterval(function(){
