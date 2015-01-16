@@ -26,7 +26,8 @@
     <link href='https://api.tiles.mapbox.com/mapbox.js/v2.1.4/mapbox.css' rel='stylesheet' />
     <style>
       body { margin:0; padding:0; }
-      #map { position:absolute; top:0; bottom:0; height:50%; width:100%; }
+      #map { top:0; bottom:0; height:50%; width:100%; }
+      .steps { margin:2px 2px 2px 2px; height:50%; border: 2px solid;  }
     </style>
   </head>
 
@@ -34,10 +35,20 @@
     <!--[if lt IE 7]>
       <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
+    <div class="ui grid" style="height:100%;">
 
-    <div class="ui grid">
-      <div class = "sixteen wide column" id='map'></div>
-      <div class = "sixteen wide column"></div>
+        <div class="sixteen wide column" style="height:60%;" id="map"></div>
+        <div class = "three wide column steps" id="step1"></div>
+        <div class = "three wide column steps" id="step2"></div>
+        <div class = "three wide column steps" id="step3"></div>
+        <div class = "three wide column steps" id="step4"></div>
+        <div class = "three wide column">
+          <p style="color:red;font-size:20px;">Mike-Lima-November-9-1-7 at stand, request to register</p>
+          <p style="color:blue;font-size:20px;">Tower registering Mike-Lima-November-9-1-7.</p>
+          <p style="color:red;font-size:20px;">This is Mike-Lima-November-9-1-7 copy, filing in flight plan</p>
+        </div>
+
+      
     </div>
 
     

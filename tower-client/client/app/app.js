@@ -15,7 +15,7 @@ if (map.tap) map.tap.disable();
 // Generate a GeoJSON line. You could also load GeoJSON via AJAX
 // or generate it some other way.
 var geojson = { type: 'LineString', coordinates: [] };
-var start = [ -122.28559970855713,37.829514190428945];
+var start = [ 37.829514190428945,-122.28559970855713];
 var momentum = [0.00001, 0.00001];
 
 for (var i = 0; i < 500; i++) {
@@ -45,13 +45,29 @@ function tick() {
     // Set the marker to be at the same point as one
     // of the segments or the line.
     marker.setLatLng(L.latLng(
-        geojson.coordinates[j][1],
-        geojson.coordinates[j][0]));
+        geojson.coordinates[j][0],
+        geojson.coordinates[j][1]));
 
     // Move to the next point of the line
     // until `j` reaches the length of the array.
     if (++j < geojson.coordinates.length) setTimeout(tick, 100);
     map.setView(L.latLng(
-        geojson.coordinates[j][1],
-        geojson.coordinates[j][0]), 18);
+        geojson.coordinates[j][0],
+        geojson.coordinates[j][1]), 18);
 }
+
+var step1 = L.mapbox.map('step1', 'lizport10.c50bb8f1',{ zoomControl:false }).setView([0, 0], 1);
+step1.setView(L.latLng(start),17);
+
+
+var step2 = L.mapbox.map('step2', 'lizport10.c50bb8f1',{ zoomControl:false }).setView([0, 0], 1);
+var step3 = L.mapbox.map('step3', 'lizport10.c50bb8f1',{ zoomControl:false }).setView([0, 0], 1);
+var step4 = L.mapbox.map('step4', 'lizport10.c50bb8f1',{ zoomControl:false }).setView([0, 0], 1);
+
+
+var socket = io('http://tower.dronepass.org:8080');
+
+socket.on('news', function (data) {
+  console.log(data);
+  socket.emit('my other event', { my: 'data' });
+});
