@@ -2,7 +2,7 @@ var pg = require('./config.js');
 //var pg = require('./testConfig.js');
 var st = require('knex-postgis')(pg);
 
-var BUFFER_OFFSET = 5; // 5 METERS
+var BUFFER_OFFSET = 5; // IN METERS
 
 /**
 * All of the utility functions return a knex query
@@ -14,16 +14,13 @@ var BUFFER_OFFSET = 5; // 5 METERS
 * getParcelGid(x,y,table).exec(callback);
 */
 
-
-
-
-
 //*************************************************************************
 //        GENERAL QUERIES
 //*************************************************************************
 
 /**
-* input:  gid, table
+* input:  gid     (INTEGER)
+          table   (STRING)
 * output: knex query that selects GeoJSON Geometry of provided gid in provided table
 */
 var getParcelGeometryJSON = function(gid, table){
@@ -32,9 +29,9 @@ var getParcelGeometryJSON = function(gid, table){
   return gid.constructor === Array ? query.whereIn('gid', gid) : query.where('gid', gid);
 };
 
-
 /**
-* input:  gid (integer or array of integers), table
+* input:  gid     (INTEGER or Array of INTEGERS)
+          table   (STRING)
 * output: knex query that selects Text Geometry of provided gid in provided table
 */
 var getParcelGeometryText = function(gid, table){
@@ -43,9 +40,8 @@ var getParcelGeometryText = function(gid, table){
   return gid.constructor === Array ? query.whereIn('gid', gid) : query.where('gid', gid);
 };
 
-
 /**
-* input:  Geometry as Text
+* input:  Geometry (as Text)
 * output: knex query that gives Convex Hull as Raw Geometry
 */
 var convertToConvexHull = function(geoText){
@@ -55,22 +51,21 @@ var convertToConvexHull = function(geoText){
   });
 };
 
-
 /**
-* input:  long, lat
+* input:  longitude   (FLOAT) (NOTE: expects WGS84 coordinates)
+          latitude    (FLOAT)
 * output: knex query that selects gid of Parcel that intersects with provided long lat point
 *         by geography calculations (slow, exact)
 */
 var getParcelGidByGeography = function(longitude, latitude){
-  var longitude=-122.023036, latitude=37.634351;
   return pg.select('gid')
   .from('parcel_wgs84')
   .whereRaw("ST_Intersects(ST_GeographyFromText('SRID=4326;POINT("+longitude+" "+latitude+")'), lot_geom)");
 };
 
-
 /**
-* input:  long, lat
+* input:  longitude   (FLOAT) (NOTE: expects WGS84 coordinates)
+          latitude    (FLOAT)
 * output: knex query that selects gid of Parcel that intersects with provided long lat point
 *         by geometry calculations (fast, estimate)
 */
@@ -80,10 +75,11 @@ var getParcelGid = function(longitude, latitude){
   .whereRaw("ST_Contains(lot_geom, ST_Transform(ST_GeometryFromText('POINT("+longitude+" "+latitude+")',4326), 102243))");
 };
 
-
 /**
-* input:  [{gid: #},{gid: #},{gid: #}...]
-* output: promise with an array of geometries
+* input:  gids        (Array of INTEGERS)
+          tableName   (STRING) OPTIONAL
+          geomColName (STRING) OPTIONAL
+* output: knex query that gives an array of geometries matching given gids
 */
 var getGeometriesFromGids = function(gids, tableName, geomColName){
   var arr = [];
@@ -93,9 +89,6 @@ var getGeometriesFromGids = function(gids, tableName, geomColName){
   return pg.select(geomColName || 'hull_geom')
   .from(tableName || 'owned_parcel')
   .whereIn('gid', arr)
-  .then(function(x){
-    return x;
-  })
   .map(function(geom){
     return geomColName ? geom[geomColName] : geom['hull_geom'];
   })
@@ -104,9 +97,8 @@ var getGeometriesFromGids = function(gids, tableName, geomColName){
     .then(function(sridSetGeom){
       return sridSetGeom.rows[0].st_astext;
     });
-  })
+  });
 };
-
 
 /**
 * input:  polygon (as text or geometry)
@@ -119,23 +111,20 @@ var getExternalRing = function(polygon){
   });
 };
 
-
 /**
 * input:  two geometries (as text or geometry)
 * output: promise with what geom1 does not share
 *         with geom2 (as text)
 */
 var getDifference = function(geom1, geom2){
-  // return pg.raw("SELECT ST_Difference('"+geom1+"',ST_GeometryFromText('"+geom2+"'))")
   return pg.raw("SELECT ST_AsGeoJSON(ST_Difference('"+geom1+"','"+geom2+"'))")
   .then(function(diff){
-    // return diff.rows[0].st_difference;
     return diff.rows[0].st_asgeojson;
   });
 };
 
 /**
-* input:  geoJSON
+* input:  geoJSON (as GeoJSON)
 * output: promise with geometry (as text)
 */
 var getTextFromGeoJSON = function(geoJSON){
@@ -143,7 +132,7 @@ var getTextFromGeoJSON = function(geoJSON){
   .then(function(text){
     return text.rows[0].st_astext;
   });
-}
+};
 
 /**
 * input:  open line string (as GeoJSON)
@@ -156,7 +145,6 @@ var getClosedLineString = function(openRing){
   return JSON.stringify(ringJSONObj);
 };
 
-
 /**
 * input:  array of line strings (as GeoJSON)
 * output: promise with a multi line string (as GeoJSON)
@@ -167,8 +155,7 @@ var makeMultiLineString = function(lineStrings){
     multiLineString.coordinates.push(JSON.parse(lineStrings[i]).coordinates);
   }
   return JSON.stringify(multiLineString);
-}
-
+};
 
 /**
 * input:  Polygon     (as text or geometry)
@@ -184,9 +171,8 @@ var getSplitPolygon = function(polygon, lineString){
       splitPolygons.push(JSON.stringify(geoms[i]));
     }
     return splitPolygons;
-  })
-}
-
+  });
+};
 
 /**
 * input:  tuple of LineStrings (as text or geometry)
@@ -201,10 +187,9 @@ var getShorterOfTwoLineString = function(lines){
     .then(function(length2){
       length2 = length2.rows[0].st_length;
       return length1 > length2 ? line2 : line1;
-    })
-  })
-}
-
+    });
+  });
+};
 
 /**
 * input:  two geometries (as text or geometry)
@@ -228,7 +213,6 @@ var getLineMerge = function(multiLineString){
     return result.rows[0].st_astext;
   });
 };
-
 
 /**
 * input:  two geometries (as text or geometry)
@@ -260,38 +244,14 @@ var makeMultiGeometry = function(geoms){
 
 /**
 * input:  geometry or text geometry
-* output: Geo JSON
+* output: GeoJSON formatted geometry
 */
 var getGeoJSONFromGeom = function(geom){
   return pg.raw("SELECT ST_AsGeoJSON('"+geom+"')")
   .then(function(result){
     return result.rows[0].st_asgeojson;
   })
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+};
 
 
 //*************************************************************************
@@ -299,9 +259,9 @@ var getGeoJSONFromGeom = function(geom){
 //*************************************************************************
 
 /**
-* input:  call sign
-*         drone type
-*         max velocity
+* input:  call sign     (STRING)
+*         drone type    (STRING)
+*         max velocity  (INTEGER)
 * output: knex query that inserts a row to drone table
 */
 var addDrone = function(callSign, droneType, maxVelocity) {
@@ -310,55 +270,45 @@ var addDrone = function(callSign, droneType, maxVelocity) {
   .where('call_sign', callSign)
   .then(function(r){
     if (r.length === 0) {
-
       return pg('drone')
       .insert({
         call_sign: callSign,
         drone_type: droneType,
         max_velocity: maxVelocity
       }, ['call_sign', 'drone_type', 'max_velocity']);
-
     } else {
-
       return r[0];
-
     }
-  })
-}
-// addDrone('Tango-Alfa-Victor-2-4-7', 1, 10).then(console.log).catch(console.log);
-
+  });
+};
 
 /**
-* input:  call sign
-* output: knex query that removes a row in the drone table
+* input:  callSign (STRING)
+* output: knex query that removes a row in the drone table with matching call sign
 */
 var removeDrone = function(callSign) {
   return pg('drone')
   .where('call_sign',callSign)
   .delete();
-}
-
+};
 
 /**
-* input:  call sign (STRING)
+* input:  callSign (STRING)
 * output: promise with operator id, flight start time, flight end time, and path_geom
 */
 var getFlightData = function(callSign){
   return pg.select(pg.raw("drone_operator_id, flight_start::time, flight_end::time, ST_AsGeoJSON(path_geom)"))
-  // return pg.select(pg.raw("drone_operator_id, flight_start, flight_end, ST_AsGeoJSON(path_geom)"))
   .from('flight_path')
   .where('drone_call_sign', callSign)
   .map(function(result){
     result.path_geom = result.st_asgeojson;
     delete result.st_asgeojson;
     return result;
-  })
+  });
 };
-// var lineStr = "LINESTRING((1862897.3 631899.7, 1862961.1 632124.5))";
-
 
 /**
-* input:  call sign (STRING)
+* input:  callSign (STRING)
 * output: deletes row with matching call sign and returns a promise
 */
 var removeFlightPath = function(callSign){
@@ -366,7 +316,6 @@ var removeFlightPath = function(callSign){
   .where('drone_call_sign', callSign)
   .delete();
 };
-
 
 /**
 * input:  request.callSign, callsign of the associated drone
@@ -378,25 +327,12 @@ var removeFlightPath = function(callSign){
 var getPathConflicts = function(request) {
   var linestring = {'type':'LineString', 'coordinates':request.path};
   var linestringValue = "ST_SetSRID(ST_GeomFromGeoJSON('" + JSON.stringify(linestring) + "'),102243)";
-
   var intersectLine = 'ST_Intersects(' + linestringValue + ',' + 'hull_geom' + ')';
   var restrictionOverlap = "('" + request.flightStart + "'::time, '" + request.flightEnd + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
   var rawQuery = intersectLine + ' AND ' + restrictionOverlap + ';';
 
-  // where not in (
-  //    select owned_parcel_gid 
-  //    from restriction_exemption 
-  //    where call_sign=request.callSign 
-  //    AND flightStart > exemptionStart 
-  //    AND flightEnd < exemptionEnd
-  //)
-  //
-  // doesn't check exemption tables yet
-
   return pg.select('owned_parcel_gid').from('restriction_exemption')
   .where('drone_call_sign', request.callSign)
-  // .andWhere('exemption_start', '<', request.flightStart)
-  // .andWhere('exemption_end', '>', request.flightEnd)
   .map(function(row) {
     return row.owned_parcel_gid;
   })
@@ -409,7 +345,7 @@ var getPathConflicts = function(request) {
     console.log(error);
     return error;
   });
-}
+};
 
 /**
 * input:  request.callSign, callsign of the associated drone
@@ -424,9 +360,7 @@ var addFlightPath = function(request){
   var columns = '(drone_call_sign,flight_start,flight_end,path_geom)';
   var values =  "('" + request.callSign + "','" + request.flightStart + "','" + request.flightEnd + "'," + linestringValue +')';
   var rawInsert = 'INSERT INTO flight_path ' + columns + ' VALUES ' + values + ' RETURNING gid;';
-  // and insert buffered flight path
 
-  // return pg.raw(rawInsert);
   return pg.select("drone_call_sign")
   .from("flight_path")
   .where("drone_call_sign", request.callSign)
@@ -440,26 +374,14 @@ var addFlightPath = function(request){
       })
     }
   });
-}
-// Write new addFlight path that useses UPDATE and WHERE NOT EXISTS
-
+};
 
 /**
 stages = {
-  conflict: {
-    parcel: multiPolygon,
-    flightPath: linestring
-  },
-  split: {
-    parcel: multiPolygon,
-    flightPath: cutLine
-  },
-  ring: {
-    
-  },
-  rout: {
-    flightPath: lineString
-  }
+  <conflict>,
+  <split>,
+  <ring>,
+  <reroute>
 }
 */
 var alternativePathPieces = function(linestring, geometries){
@@ -495,7 +417,6 @@ var alternativePathPieces = function(linestring, geometries){
         }
         **/
         stages['split'] = { 
-          //parcel: multiPolygon,
           flightPath: cutLine,
           parcel: []
         };
@@ -526,6 +447,12 @@ var alternativePathPieces = function(linestring, geometries){
   })
   .then(makeMultiGeometry)
   .then(function(ringLineString){
+    /**
+    ring: {
+      parcel: MultiLineString,
+      flightPath: MultiLineString
+    }
+    **/
     stages['ring'] = { 
       parcel: ringLineString,
       flightPath: cutLine
@@ -548,10 +475,7 @@ var alternativePathPieces = function(linestring, geometries){
       return stages;
     });
   })
-
-  //*******************************************************
   // Formatting to GeoJSON Section
-  //*******************************************************
   .then(function(){
     // CONFLICT
     return getGeoJSONFromGeom(stages.conflict.parcel)
@@ -607,12 +531,10 @@ var alternativePathPieces = function(linestring, geometries){
       .then(function(geoJSON){
         stages.reroute.flightPath = geoJSON;
         return stages;
-      })
-    })
-
+      });
+    });
   });
 };
-
 
 /*
 * input:  callSign  (STRING)
@@ -620,12 +542,8 @@ var alternativePathPieces = function(linestring, geometries){
 * output: updates flight_path table with a new path for given call sign
 */
 var updateFlightPath = function(callSign, path){
-  // return pg("flight_path")
-  // .where("drone_call_sign", callSign)
-  // .update("path_geom", st.geomFromGeoJSON(path, 102243))
   return pg.raw("UPDATE flight_path SET path_geom = ST_SetSRID(ST_GeomFromGeoJSON('"+path+"'),102243) WHERE drone_call_sign='"+callSign+"'")
 };
-
 
 /**
 * input:    pathGeometry      (LineString)
@@ -685,8 +603,7 @@ var makeAlternativePath = function(lineString, geometries){
   });
 };
 
-
-/*
+/**
 * input:  callSign         (STRING)
           timeBufPrevPtInd (INTEGER)
 * output: promise with a new LineString if there is a conflict and null if no conflict
@@ -700,9 +617,8 @@ var checkForPathConflicts = function(callSign, timeBufPrevPtInd){
     droneCheck.flightStart = timestampPrefix + flightData[0].flight_start;
     droneCheck.flightEnd = timestampPrefix + flightData[0].flight_end;
     droneCheck.pathAsGeoJSON = flightData[0].path_geom;
-
-    path = JSON.parse(flightData[0].path_geom).coordinates;
-    path = path.slice(timeBufPrevPtInd)
+    var path = JSON.parse(flightData[0].path_geom).coordinates;
+    path = path.slice(timeBufPrevPtInd);
 
     droneCheck.path = path;
     return droneCheck;
@@ -714,8 +630,6 @@ var checkForPathConflicts = function(callSign, timeBufPrevPtInd){
       return getTextFromGeoJSON(droneCheck.pathAsGeoJSON)
       .then(function(lineString){
         return alternativePathPieces(lineString, gids);
-        // return makeAlternativePath(lineString, gids)
-        // .then(getGeoJSONFromGeom);
       });
     // No Conflicting Hull Geometries
     } else {
@@ -725,39 +639,8 @@ var checkForPathConflicts = function(callSign, timeBufPrevPtInd){
   .catch(function(error){
     console.log(error);
     return error;
-  })
+  });
 };
-
-
-
-
-
-// Example makeAlternaivePath (assuming gid:3 and gid:5 exist & are referencing the same
-// parcels that I used for testing)
-
-// var qgisLineString = 'LINESTRING(1844948.3 649934.9, 1847550.9 645370.2)';
-// makeAlternativePath(qgisLineString, [{gid: 3}, {gid: 5}])
-// .then(getGeoJSONFromGeom)
-// .then(console.log);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 module.exports = {
@@ -769,6 +652,7 @@ module.exports = {
   getGeoJSONFromGeom:         getGeoJSONFromGeom,
   getTextFromGeoJSON:         getTextFromGeoJSON,
   getParcelGid:               getParcelGid,
+  // Drone
   addDrone:                   addDrone,
   removeDrone:                removeDrone,
   getFlightData:              getFlightData,
