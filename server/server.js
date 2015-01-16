@@ -196,6 +196,10 @@ io.on('connection', function(socket){
   // Tower checks for path conflicts every N milliseconds
   setInterval(function(){
     for(var i in drones){
+      // If the drone is not in flight, move on to next drone
+      if(drones[i].statusCode !== 2){
+        continue;
+      }
       utils.checkForPathConflicts(drones[i].callSign, drones[i].timeBufPrevPtInd)
       .then(function(fullReroutePackage){
         if (fullReroutePackage) {
