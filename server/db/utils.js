@@ -79,7 +79,7 @@ var getParcelGid = function(longitude, latitude){
 * input:  gids        (Array of INTEGERS)
           tableName   (STRING) OPTIONAL
           geomColName (STRING) OPTIONAL
-* output: knex query that gives an array of geometries matching given gids
+* output: knex query that gives an array of geometries (As Text) matching given gids
 */
 var getGeometriesFromGids = function(gids, tableName, geomColName){
   var arr = [];
@@ -253,6 +253,18 @@ var getGeoJSONFromGeom = function(geom){
   })
 };
 
+/**
+* input:  polygon       (as Text or Geometry)
+*         buffer length (FLOAT)
+* output: promise with a buffered polygon (as Text)
+*/
+var bufferPolygon = function(polygon, bufferSize){
+  return pg.raw("SELECT ST_AsText(ST_Buffer('"+polygon+"',"+bufferSize+", 'join=mitre mitre_limit=5.0'))")
+  .then(function(result){
+    return result.rows[0].st_astext;
+  });
+};
+
 
 //*************************************************************************
 //          Drone Queries
@@ -393,6 +405,9 @@ var alternativePathPieces = function(linestring, geometries){
   // to no longer intersect with geometries
   // Save removed segments (as lineToCutOut)
   return getGeometriesFromGids(geometries)
+  .map(function(polygon){
+    return bufferPolygon(polygon, 1);
+  })
   .then(function(polygons){
     return makeMultiGeometry(polygons)
     .then(function(multiPolygon){
@@ -559,6 +574,9 @@ var makeAlternativePath = function(lineString, geometries){
   // to no longer intersect with geometries
   // Save removed segments (as lineToCutOut)
   return getGeometriesFromGids(geometries)
+  .map(function(polygon){
+    return bufferPolygon(polygon, 1);
+  })
   .then(function(polygons){
     return makeMultiGeometry(polygons)
     .then(function(multiPolygon){
