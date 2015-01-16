@@ -66,8 +66,8 @@ io.on('connection', function(socket){
 // Tower Client
 //*********************************************************
   socket.on("TCT_getTranscripts", function(msg){
-    socket.emit("TTC_updateTranscripts", msgQueue);
-    msgQueue = [];
+    socket.emit("TTC_updateTranscripts", [msgQueue[0]]);
+    msgQueue.shift();
   });
 
 
@@ -76,7 +76,7 @@ io.on('connection', function(socket){
 //*********************************************************
 
   socket.on('CT_allDronesStates', function(msg){
-    tSay('Tower sending drone list to Client Server');
+    // tSay('Tower sending drone list to Client Server');
     for(callSign in drones){
       drones[callSign].locationWGS84 = proj4("ESRI:102243", "WGS84", drones[callSign].location);
     }
@@ -112,8 +112,8 @@ io.on('connection', function(socket){
   });
 
   socket.on('DT_update', function(msg){
-    dSay(msg.transcript);
-    tSay("Tower received "+msg.callSign+"'s update.");
+    // dSay(msg.transcript);
+    // tSay("Tower received "+msg.callSign+"'s update.");
     drones[msg.callSign] = msg;
   });
 
@@ -180,7 +180,7 @@ io.on('connection', function(socket){
 
   // Requests update from drones every <UPDATE_INTERVAL> seconds
   setInterval(function(){
-    tSay("Tower requesting updates from all drones.");
+    // tSay("Tower requesting updates from all drones.");
     socket.emit('TD_update', {});
   }, UPDATE_INTERVAL);
 
@@ -202,7 +202,7 @@ io.on('connection', function(socket){
             "timeBufPrevPtInd": drones[i].timeBufPrevPtInd
           }
           socket.emit("TD_changeRoute", pendingPathUpdates[drones[i].callSign]);
-          socket.emit("TTC_update", fullReroutePackage);
+          socket.emit("TTC_rerouteInfoUpdate", fullReroutePackage);
         }
       });
     }
