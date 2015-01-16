@@ -41,22 +41,38 @@ var pendingPathUpdates = {
   */
 };
 
+var msgQueue = [];
 
 var dSay = function(msg) {
   console.log(msg);
-  // push to some MQ or other storages for TTS
-}
+  msgQueue.push({
+    sender:"Drone",
+    msg: msg
+  });
+};
 
 var tSay = function(msg) {
   console.log(msg);
-  // push to some MQ or other storages for TTS
-}
+  msgQueue.push({
+    sender:"Tower",
+    msg: msg
+  });
+};
 
 
 io.on('connection', function(socket){
 
 //*********************************************************
-// Client Server Communication
+// Tower Client
+//*********************************************************
+  socket.on("TCT_getTranscripts", function(msg){
+    socket.emit("TTC_updateTranscripts", msgQueue);
+    msgQueue = [];
+  });
+
+
+//*********************************************************
+// Landowner Server Communication
 //*********************************************************
 
   socket.on('CT_allDronesStates', function(msg){
