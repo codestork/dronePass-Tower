@@ -426,6 +426,23 @@ var alternativePathPieces = function(linestring, geometries){
   .map(function(polygon){
     return bufferPolygon(polygon, 2);
   })
+  // Meld together convex hulls
+  // that overlap
+  .then(makeMultiGeometry)
+  .then(function(multiPolygon){
+    return pg.raw("SELECT ST_Dump('"+multiPolygon+"')");
+  })
+  .then(function(dumpResult){
+    return dumpResult.rows;
+  })
+  .map(function(dumpResult){
+    dumpResult = dumpResult.st_dump.split(',').pop().split(')')[0];
+    return pg.raw("SELECT ST_AsText('"+dumpResult+"')")
+    .then(function(result){
+      return result.rows[0].st_astext;
+    });
+  })
+  // Done Melding together convex hulls
   .then(function(polygons){
     return makeMultiGeometry(polygons)
     .then(function(multiPolygon){
@@ -604,8 +621,25 @@ var makeAlternativePath = function(lineString, geometries){
   // Save removed segments (as lineToCutOut)
   return getGeometriesFromGids(arr)
   .map(function(polygon){
-    return bufferPolygon(polygon, 1);
+    return bufferPolygon(polygon, 2);
   })
+  // Meld together convex hulls
+  // that overlap
+  .then(makeMultiGeometry)
+  .then(function(multiPolygon){
+    return pg.raw("SELECT ST_Dump('"+multiPolygon+"')");
+  })
+  .then(function(dumpResult){
+    return dumpResult.rows;
+  })
+  .map(function(dumpResult){
+    dumpResult = dumpResult.st_dump.split(',').pop().split(')')[0];
+    return pg.raw("SELECT ST_AsText('"+dumpResult+"')")
+    .then(function(result){
+      return result.rows[0].st_astext;
+    });
+  })
+  // Done Melding together convex hulls
   .then(function(polygons){
     return makeMultiGeometry(polygons)
     .then(function(multiPolygon){
