@@ -91,6 +91,7 @@ io.on('connection', function(socket){
       // drones[callSign].locationWGS84 = proj4("ESRI:102243", "WGS84", drones[callSign].location);
       clientPackage[callSign] = {};
       clientPackage[callSign].locationWGS84 = proj4("ESRI:102243", "WGS84", drones[callSign].location);
+      clientPackage[callSign].callSign = callSign;
     }
     socket.emit('TC_update', clientPackage);
   });
