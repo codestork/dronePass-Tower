@@ -86,10 +86,13 @@ io.on('connection', function(socket){
 
   socket.on('CT_allDronesStates', function(msg){
     // tSay('Tower sending drone list to Client Server');
+    var clientPackage = {};
     for(callSign in drones){
-      drones[callSign].locationWGS84 = proj4("ESRI:102243", "WGS84", drones[callSign].location);
+      // drones[callSign].locationWGS84 = proj4("ESRI:102243", "WGS84", drones[callSign].location);
+      clientPackage[callSign] = {};
+      clientPackage[callSign].locationWGS84 = proj4("ESRI:102243", "WGS84", drones[callSign].location);
     }
-    socket.emit('TC_update', drones);
+    socket.emit('TC_update', clientPackage);
   });
 
 
