@@ -26,7 +26,10 @@
     <link href='https://api.tiles.mapbox.com/mapbox.js/v2.1.4/mapbox.css' rel='stylesheet' />
     <style>
       body { margin:0; padding:0; }
-      #map { position:absolute; top:0; bottom:0; height:50%; width:100%; }
+      .map { padding:2px 2px 2px 2px; height:50%; width:100%; border: 2px solid;}
+      .steps { padding:2px 2px 2px 2px; height:50%; border: 2px solid;  }
+      .droneTalk {color:red;font-size:18px;}
+      .towerTalk {color:blue;font-size:18px;}
     </style>
   </head>
 
@@ -34,10 +37,20 @@
     <!--[if lt IE 7]>
       <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
+    <div class="ui grid" style="height:100%;">
 
-    <div class="ui grid">
-      <div class = "sixteen wide column" id='map'></div>
-      <div class = "sixteen wide column"></div>
+        <div class="eight wide column map" style="height:60%;" id="map_zoom16"></div>
+        <div class="eight wide column map" style="height:60%;" id="map_zoom18"></div>
+
+        <div class = "three wide column steps" id="step_conflict"></div>
+        <div class = "three wide column steps" id="step_split"></div>
+        <div class = "three wide column steps" id="step_ring"></div>
+        <div class = "three wide column steps" id="step_reroute"></div>
+        <div class = "three wide column" id="transcriptWindow">
+          
+        </div>
+
+      
     </div>
 
     
@@ -56,15 +69,14 @@
       <script src="bower_components/lodash/dist/lodash.compat.js"></script>
       <script src="bower_components/angular-ui-router/release/angular-ui-router.js"></script>
       <script src="bower_components/semantic-ui/dist/semantic.js"></script>
+      <script src="bower_components/proj4/dist/proj4.js"></script>
       <!-- endbower -->
     <!-- endbuild -->
         <script src='https://api.tiles.mapbox.com/mapbox.js/v2.1.4/mapbox.js'></script>
-
+        <script src="http://api.tiles.mapbox.com/mapbox.js/plugins/turf/v1.3.0/turf.min.js"></script>
+        <script src='bower_components/socket.io-client/socket.io.js'></script>
         <!-- build:js({.tmp,client}) app/app.js -->
         <script src="app/app.js"></script>
-          <!-- injector:js -->
-          <script src="components/navbar/navbar.controller.js"></script>
-          <!-- endinjector -->
         <!-- endbuild -->
         
 </body>
