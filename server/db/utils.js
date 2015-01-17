@@ -82,18 +82,14 @@ var getParcelGid = function(longitude, latitude){
 * output: knex query that gives an array of geometries (As Text) matching given gids
 */
 var getGeometriesFromGids = function(gids, tableName, geomColName){
-  var arr = [];
-  for (var i=0; i<gids.length; i++) {
-    arr.push(gids[i].gid);
-  }
   return pg.select(geomColName || 'hull_geom')
   .from(tableName || 'owned_parcel')
-  .whereIn('gid', arr)
+  .whereIn('gid', gids)
   .map(function(geom){
     return geomColName ? geom[geomColName] : geom['hull_geom'];
   })
   .map(function(geom){
-    return pg.raw("SELECT ST_AsText(ST_SetSRID(ST_AsText('"+geom+"'), 102243))")
+    return pg.raw("SELECT ST_AsText('"+geom+"')")
     .then(function(sridSetGeom){
       return sridSetGeom.rows[0].st_astext;
     });
@@ -400,11 +396,33 @@ var alternativePathPieces = function(linestring, geometries){
   var cutLine;
   var lineToCutOut;
   var stages = {};
+
+  var arr = [];
+  for (var i=0; i<geometries.length; i++) {
+    arr.push(geometries[i].gid);
+  }
+
+  return pg.select('parcel_gid')
+  .from('owned_parcel')
+  .whereIn('gid', arr)
+  .map(function(result){
+    return result.parcel_gid;
+  })
+  .then(function(parcelGids){
+    return getGeometriesFromGids(parcelGids, "parcel", "lot_geom")
+    .then(makeMultiGeometry)
+    .then(function(multiPolygon){
+      stages['reroute'] = { parcel: multiPolygon };
+      return arr;
+    });
+  })
   // make union of all geoms
   // Break apart lineString (as cutLine) 
   // to no longer intersect with geometries
   // Save removed segments (as lineToCutOut)
-  return getGeometriesFromGids(geometries)
+  .then(function(){
+    return getGeometriesFromGids(arr);
+  })
   .map(function(polygon){
     return bufferPolygon(polygon, 1);
   })
@@ -484,9 +502,10 @@ var alternativePathPieces = function(linestring, geometries){
   .then(function(line){
     return getSymDifference(cutLine, line)
     .then(function(result) {
-      stages['reroute'] = {
-        flightPath: result
-      };
+      stages['reroute'].flightPath = result;
+      // stages['reroute'] = {
+      //   flightPath: result
+      // };
       return stages;
     });
   })
@@ -532,15 +551,21 @@ var alternativePathPieces = function(linestring, geometries){
       return getGeoJSONFromGeom(stages.ring.parcel)
       .then(function(geoJSON){
         stages.ring.parcel = geoJSON;
-      })
+      });
     })
     .then(function(){
       return getGeoJSONFromGeom(stages.ring.flightPath)
       .then(function(geoJSON){
         stages.ring.flightPath = geoJSON;
-      })
+      });
     })
     // REROUTE
+    .then(function(){
+      return getGeoJSONFromGeom(stages.reroute.parcel)
+      .then(function(geoJSON){
+        stages.reroute.parcel = geoJSON;
+      });
+    })
     .then(function(){
       return getGeoJSONFromGeom(stages.reroute.flightPath)
       .then(function(geoJSON){
@@ -569,11 +594,15 @@ var updateFlightPath = function(callSign, path){
 var makeAlternativePath = function(lineString, geometries){
   var cutLine;
   var lineToCutOut;
+  var arr = [];
+  for (var i=0; i<geometries.length; i++) {
+    arr.push(geometries[i].gid);
+  }
   // make union of all geoms
   // Break apart lineString (as cutLine) 
   // to no longer intersect with geometries
   // Save removed segments (as lineToCutOut)
-  return getGeometriesFromGids(geometries)
+  return getGeometriesFromGids(arr)
   .map(function(polygon){
     return bufferPolygon(polygon, 1);
   })
