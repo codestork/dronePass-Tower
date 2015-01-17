@@ -424,7 +424,7 @@ var alternativePathPieces = function(linestring, geometries){
     return getGeometriesFromGids(arr);
   })
   .map(function(polygon){
-    return bufferPolygon(polygon, 1);
+    return bufferPolygon(polygon, 2);
   })
   .then(function(polygons){
     return makeMultiGeometry(polygons)

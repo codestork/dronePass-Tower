@@ -12,6 +12,7 @@ var io = require('socket.io')(port);
 //*********************************************************
 var CHECK_CONFLICT_INTERVAL = 12000;
 var CHECK_IF_PATH_IS_UPDATED_INTERVAL = 30000;
+var CHECK_IF_PATH_STEPS_RECEIVED = 1000;
 var UPDATE_INTERVAL = 4000;
 
 // Drones that are currently connected to the Tower Server
@@ -40,6 +41,14 @@ var pendingPathUpdates = {
               ...
   */
 };
+
+var pendingFullReroutePackageUpdate = null;
+/*
+<conflict>
+<split>
+<ring>
+<reroute>
+*/
 
 var msgQueue = [];
 
@@ -178,6 +187,13 @@ io.on('connection', function(socket){
     });
   });
 
+  // After Tower receives confirmation of path finder
+  // steps receival from Tower Client, set pending
+  // package to null
+  socket.on("TCT_fullReroutePackageUpdateAck",function(msg){
+    pendingFullReroutePackageUpdate = null;
+  });
+
   // Requests update from drones every <UPDATE_INTERVAL> seconds
   setInterval(function(){
     // tSay("Tower requesting updates from all drones.");
@@ -202,14 +218,15 @@ io.on('connection', function(socket){
             "timeBufPrevPtInd": drones[i].timeBufPrevPtInd
           }
           socket.emit("TD_changeRoute", pendingPathUpdates[drones[i].callSign]);
-          socket.emit("TTC_rerouteInfoUpdate", fullReroutePackage);
+          pendingFullReroutePackageUpdate = fullReroutePackage;
+          socket.emit("TTC_rerouteInfoUpdate", pendingFullReroutePackageUpdate);
         }
       });
     }
   }, CHECK_CONFLICT_INTERVAL);
 
-  // Asks drones, that need to update their paths, to
-  // update their path every <CHECK_IF_PATH_IS_UPDATED_INTERVAL>
+  // Tells drones they need to update their paths
+  // every <CHECK_IF_PATH_IS_UPDATED_INTERVAL>
   // until they are updated and removed from the
   // pendingPathUpdates object
   setInterval(function(){
@@ -217,4 +234,12 @@ io.on('connection', function(socket){
       socket.emit("TD_changeRoute", pendingPathUpdates[i]);
     }
   }, CHECK_IF_PATH_IS_UPDATED_INTERVAL);
+
+  // Attempts to send package for path finding steps to
+  // Tower Client every <CHECK_IF_PATH_STEPS_RECEIVED> ms
+  setInterval(function(){
+    if( pendingFullReroutePackageUpdate ) {
+      socket.emit("TTC_rerouteInfoUpdate", pendingFullReroutePackageUpdate);
+    }
+  }, CHECK_IF_PATH_STEPS_RECEIVED)
 });
