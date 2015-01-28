@@ -89,7 +89,7 @@ var getGeometriesFromGids = function(gids, tableName, geomColName){
     return geomColName ? geom[geomColName] : geom['hull_geom'];
   })
   .map(function(geom){
-    return pg.raw("SELECT ST_AsText('"+geom+"')")
+    return pg.raw("SELECT ST_AsText('"+geom+"')") //return pg.raw("SELECT ST_AsText(ST_SetSRID(ST_AsText('"+geom+"'), 102243))")
     .then(function(sridSetGeom){
       return sridSetGeom.rows[0].st_astext;
     });
@@ -339,8 +339,21 @@ var getPathConflicts = function(request) {
   var restrictionOverlap = "('" + request.flightStart + "'::time, '" + request.flightEnd + "'::time) OVERLAPS (restriction_start::time, restriction_end::time)";
   var rawQuery = intersectLine + ' AND ' + restrictionOverlap + ';';
 
+  // TODO check that queried properties exist
+  // check that call_sign exists in dron
+  // where not in (
+  //    select owned_parcel_gid 
+  //    from restriction_exemption 
+  //    where call_sign=request.callSign 
+  //    AND flightStart > exemptionStart 
+  //    AND flightEnd < exemptionEnd
+  //)
+  //
+  // doesn't check exemption tables yet
   return pg.select('owned_parcel_gid').from('restriction_exemption')
   .where('drone_call_sign', request.callSign)
+  .andWhere('exemption_start', '<', request.flightStart)
+  .andWhere('exemption_end', '>', request.flightEnd)
   .map(function(row) {
     return row.owned_parcel_gid;
   })
@@ -368,6 +381,7 @@ var addFlightPath = function(request){
   var columns = '(drone_call_sign,flight_start,flight_end,path_geom)';
   var values =  "('" + request.callSign + "','" + request.flightStart + "','" + request.flightEnd + "'," + linestringValue +')';
   var rawInsert = 'INSERT INTO flight_path ' + columns + ' VALUES ' + values + ' RETURNING gid;';
+  // and insert buffered flight path
 
   return pg.select("drone_call_sign")
   .from("flight_path")

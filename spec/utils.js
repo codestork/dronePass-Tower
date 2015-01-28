@@ -1,11 +1,11 @@
 var path = require('path');
 var expect = require('chai').expect;
-//var pg = require(path.join(__dirname, '..', './server/db/testConfig.js'));
-var pg = require(path.join(__dirname, '..', './server/db/config.js'));
 var utils = require(path.join(__dirname, '..', './server/db/utils.js'));
+var config = require('config');
+var pg = require('knex')(config);
 var st = require('knex-postgis')(pg);
 
-var TIME_OUT = 1000;
+var TIME_OUT = 500;
 
 var pathCoords3 = [[1886555.8045440218,614332.6659284362],[1886800.1148899796,612866.8038526904],[1888455.9961236925,613328.2789506103],[1887953.8026347796,612513.9111307516]];
 var callSign = 'Test';//INSERT INTO drone (call_sign, drone_type, max_velocity) VALUES ('Test', 'Amazon', 10);
@@ -23,6 +23,7 @@ var request = {
   // droneOperatorId : droneOperatorId,
   path : pathCoords3
 };
+
 
 // temp. this should be replaced with scripts that run
 var registerAddress = function(land_owner_id, parcel_gid, time_start, time_end) 
@@ -60,35 +61,22 @@ describe('addFlightPath()', function () {
   'use strict';
 
   beforeEach(function(done) {
+    // registerAddress(3, 70371, '04:05:06', '10:05:06');
     request.flightStart = '1999-01-08 04:05:06';
     request.flightEnd = '1999-01-08 10:05:06';
-    registerAddress(12345, 70371, '04:05:06', '10:05:06');
-    registerAddress(23456, 70199, null, null);
-    registerAddress(34567, 70640, '04:05:06', '10:05:06');
     done();
   });
 
-  it('exists addFlightPath', function () {
+  it('exists addFlightPath. Tests: [1, 2]', function () {
     expect(utils.addFlightPath).to.be.a('function');
   });
 
-  it('should fail to add a flight path with incorrect time order', function(done) {
-    var errResult;
-
-    request.flightStart = "1999-01-08 05:05:06";
-    request.flightEnd = "1999-01-08 04:05:06";
-    
-    utils.addFlightPath(request).exec(function(err, r) {
-      errResult = err.routine;
-    });
-
-    setTimeout(function() {
-      expect(errResult).to.equal('ExecConstraints');
-      done();
-    }, TIME_OUT);
-  });
-
-  it('should add flight path', function(done) {
+  it('should add flight path, Test1', function(done) {
+    // test relies on there being the following data:
+    // - drone with call_sign === 'Test1'
+    // test relies on there being no flight_path with:
+    // - the drone_call_sign === 'Test1'
+    request.callSign = 'Test1';
     var flightPathId;
     utils.addFlightPath(request).exec(function(err, r) {
       flightPathId = r.rows[0].gid;
@@ -103,6 +91,27 @@ describe('addFlightPath()', function () {
       done();
     }, TIME_OUT);
   });
+
+  it('should fail to add a flight path with incorrect time order, Test2', function(done) {
+    // test relies on there being the following data:
+    // - drone with call_sign === 'Test2'
+    // test relies on there being no flight_path with:
+    // - the drone_call_sign === 'Test2'
+    var errResult;
+
+    request.callSign = 'Test2';
+    request.flightStart = "1999-01-08 05:05:06";
+    request.flightEnd = "1999-01-08 04:05:06";
+    
+    utils.addFlightPath(request).exec(function(err, r) {
+      errResult = err.routine;
+    });
+
+    setTimeout(function() {
+      expect(errResult).to.equal('ExecConstraints');
+      done();
+    }, TIME_OUT);
+  });
 });
 
 describe('getPathConflicts()', function() {
@@ -110,10 +119,39 @@ describe('getPathConflicts()', function() {
     expect(utils.getPathConflicts).to.be.a('function');
   });
 
-  it('should return restricted geometries from getPathConflicts', function (done) {
-    var expected = [ { lot_geom: 'MULTIPOLYGON(((-122.152439944457 37.7024361162133,-122.15254094361 37.7023939645878,-122.152617430206 37.7023620428772,-122.152770133018 37.7025930211517,-122.152592646877 37.7026670950637,-122.152439944457 37.7024361162133)))' } ];
+  it('should return no restricted geometries because of exemption, Test3', function (done) {
+    request.callSign = 'Test3';
+    request.path = [[1876586.3304232405,615035.1327080689],[1876888.2187762756,614824.4040113207]];
     var result;
     var resultsLength;
+
+    utils.getPathConflicts(request).exec(function(err, r) {
+      console.log(r);
+      if (err) {
+        console.log(err);
+        expect(err).to.equal('');
+        done();
+        return;
+      }
+
+      resultsLength = r.length;
+    });
+
+    setTimeout(function() {
+      expect(resultsLength).to.equal(0);
+      done();
+    }, TIME_OUT);    
+  });    
+
+  it('should return restricted geometries from getPathConflicts Test4', function (done) {
+    var expected = [ { lot_geom: 'MULTIPOLYGON(((-122.282200398657 37.8865961263712,-122.282306033954 37.8863047470094,-122.28237747253 37.886320833232,-122.282380798288 37.8863216370058,-122.282380378957 37.8863227998695,-122.282389003705 37.8863248945477,-122.282430572848 37.8863349877626,-122.28232956848 37.886623814168,-122.282200398657 37.8865961263712)))' } ];
+
+    request.callSign = 'Test4';
+    //-- flight path {"type":"LineString","coordinates":[[1877613.8620405402,614584.7430130504],[1877932.3029469794,614514.3159290175]]}
+    request.path = [[1877613.8620405402,614584.7430130504],[1877932.3029469794,614514.3159290175]];
+    var result;
+    var resultsLength;
+
     utils.getPathConflicts(request).exec(function(err, r) {
       if (err) {
         console.log(err);
@@ -123,6 +161,7 @@ describe('getPathConflicts()', function() {
       }
 
       resultsLength = r.length;
+      console.log(r);
       if (resultsLength === 0) {
         expect(resultsLength).to.equal(1);
         done();
@@ -131,7 +170,7 @@ describe('getPathConflicts()', function() {
       utils.getParcelGeometryText(r[0].gid, 'parcel_wgs84').exec(function(err, r) {
         result = r;
       });
-    });
+    });    
     
     setTimeout(function() {
       expect(result[0].lot_geom).to.equal(expected[0].lot_geom);
@@ -153,5 +192,4 @@ describe('getPathConflicts()', function() {
       done();
     }, TIME_OUT);    
   });
-
 })

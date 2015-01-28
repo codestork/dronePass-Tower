@@ -1,0 +1,10 @@
+{
+  "client": "pg",
+  "connection": {
+    "host"     : "localhost",
+    "user"     : "dronepass",
+    "password" : "laddladd",
+    "database" : "dronepasstest"
+  },
+  "debug": true
+}

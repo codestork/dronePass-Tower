@@ -1,0 +1,6 @@
+{
+  "connection": {
+    "database" : "dronepass"
+  },
+  "debug": false
+}

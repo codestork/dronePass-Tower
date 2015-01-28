@@ -4,9 +4,9 @@
   "description": "dronePass-Tower",
   "main": "./server/server.js",
   "scripts": {
-    "pretest": "echo pretest",
+    "pretest": "echo PRE TEST SCRIPTS; ./testData/./dptest_setup.sh;",
     "test": "mocha ./spec/utils.js || :",
-    "posttest": "echo posttest"
+    "posttest": "echo POST TEST SCRIPTS; "
   },
   "repository": {
     "type": "git",
@@ -21,6 +21,7 @@
   "dependencies": {
     "bcrypt-nodejs": "0.0.3",
     "bluebird": "^2.4.0",
+    "config": "^1.10.0",
     "grunt": "^0.4.4",
     "knex": "^0.7.3",
     "knex-postgis": "^0.1.2",
