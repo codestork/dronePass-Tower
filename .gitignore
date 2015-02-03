@@ -5,3 +5,4 @@ npm-debug.log
 testData/TestPaths*
 testData/parcel*
 testData/dump*
+*.orig
