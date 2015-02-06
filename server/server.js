@@ -161,6 +161,9 @@ io.on('connection', function(socket){
     });
   });
 
+  // When drone is ready for take off
+  // Update its status in local storage
+  // and tell drone to take off
   socket.on('DT_readyTakeOff', function(msg){
     dSay(msg.transcript);
     tSay("Acknowledged. "+msg.callSign+", initiate take off.");
