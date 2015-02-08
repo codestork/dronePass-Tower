@@ -1,0 +1,3 @@
+[submodule "server/db"]
+	path = server/db
+	url = https://github.com/davidraleigh/dronePass-DB
